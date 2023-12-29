@@ -428,51 +428,53 @@ t_model_ports* find_port_in_architecture_model(t_model* arch_model, t_node_port_
 
 
     /*
-     *  First chech the input linked list, if port name is not
+     *  First check the input linked list, if port name is not
      *  there, try the output linked list.  It is an error
      *  if port name is not in either list.
      */
 
     //Check inputs
     //Find the correct port, by name matching
-    t_model_ports* arch_model_port = arch_model->inputs;
+//    t_model_ports* arch_model_port = arch_model->inputs;
 
-    //Until NULL or a matching port name
-    while ((arch_model_port) && (strcmp(arch_model_port->name, node_port->port_name) != 0)) {
+    t_model_ports* found_port = nullptr;
+
+    for (auto arch_model_port : arch_model->get_input_ports()) {
+        if (strcmp(arch_model_port->name, node_port->port_name) == 0) {
+            found_port = arch_model_port;
+            break;
+        }
+
         //Must be an input if in the inputs linked list
-        VTR_ASSERT(arch_model_port->dir == IN_PORT); 
-
-        //Move to the next arch_model_port
-        arch_model_port = arch_model_port->next;
+        VTR_ASSERT(arch_model_port->dir == IN_PORT);
     }
 
     //arch_model_port is either null or an input
-    if (arch_model_port == NULL) {
+    if (found_port == nullptr) {
         //Not an input should be an output
 
         //Check outputs
-        arch_model_port = arch_model->outputs;
+        for (auto arch_model_port : arch_model->get_output_ports()) {
+            if (strcmp(arch_model_port->name, node_port->port_name) == 0) {
+                found_port = arch_model_port;
+                break;
+            }
 
-        //Until NULL or a matching port name
-        while ((arch_model_port) && (strcmp(arch_model_port->name, node_port->port_name) != 0)) {
-            //Must be an output if in the output linked list
-            VTR_ASSERT(arch_model_port->dir == OUT_PORT); 
-
-            //Move to the next arch_model_port
-            arch_model_port = arch_model_port->next;
+            //Must be an input if in the inputs linked list
+            VTR_ASSERT(arch_model_port->dir == OUT_PORT);
         }
 
         //arch_model_port must be either an input or an output, 
         // hence it should never be NULL at this point
-        if (arch_model_port == NULL) {
+        if (found_port == nullptr) {
             cout << "Error: could not find port '" << node_port->port_name << "' on model '" << arch_model->name << "' in architecture file\n";
             exit(1);
         }
     }
 
-    VTR_ASSERT(arch_model_port != NULL);
+    VTR_ASSERT(found_port != nullptr);
 
-    return arch_model_port;
+    return found_port;
 }
 
 

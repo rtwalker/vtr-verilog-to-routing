@@ -215,7 +215,7 @@ string get_wire_name(t_pin_def* net, int index){
 //============================================================================================
 //============================================================================================
 
-string generate_opname (t_node* vqm_node, t_model* arch_models, string device){
+string generate_opname (t_node* vqm_node, t_model* arch_models, const string& device){
     //Add support for different architectures here.
     // Currently only support Stratix IV and Stratix 10
     string mode_hash;

@@ -135,9 +135,9 @@ static void process_module_nodes_and_create_hard_blocks(t_module* main_module, s
 
 static bool create_and_initialize_all_hard_block_ports(t_model* hard_block_arch_model, t_hard_block_recog* storage_of_hard_block_info);
 
-static void create_hard_block_port_info_structure(t_hard_block_recog* storage_of_hard_block_info, std::string hard_block_type_name);
+static void create_hard_block_port_info_structure(t_hard_block_recog* storage_of_hard_block_info, const std::string& hard_block_type_name);
 
-static int extract_and_store_hard_block_model_ports(t_hard_block_recog* storage_of_hard_block_info, t_model_ports* curr_hard_block_model_port, std::string curr_hard_block_type_name,int port_index, std::string port_type);
+static int extract_and_store_hard_block_model_ports(t_hard_block_recog* storage_of_hard_block_info, vtr::Range<t_model::port_iter_t > hard_block_model_ports, const std::string& curr_hard_block_type_name,int port_index, const std::string& port_type);
 
 static t_array_ref* convert_hard_block_model_port_to_hard_block_node_port(t_model_ports* hard_block_model_port);
 
@@ -484,18 +484,14 @@ static bool create_and_initialize_all_hard_block_ports(t_model* hard_block_arch_
     std::string hard_block_arch_model_name = hard_block_arch_model->name;
     bool result = true;
 
-    // get the hard block ports
-    t_model_ports* input_ports = hard_block_arch_model->inputs;
-    t_model_ports* output_ports = hard_block_arch_model->outputs;
-
     //initialize a hard block node port array
     create_hard_block_port_info_structure(storage_of_hard_block_info,hard_block_arch_model_name);
 
     // handle input ports
-    hard_block_port_index += extract_and_store_hard_block_model_ports(storage_of_hard_block_info, input_ports, hard_block_arch_model_name,hard_block_port_index, INPUT_PORTS);
+    hard_block_port_index += extract_and_store_hard_block_model_ports(storage_of_hard_block_info, hard_block_arch_model->get_input_ports(), hard_block_arch_model_name,hard_block_port_index, INPUT_PORTS);
 
     // handle output ports
-    hard_block_port_index += extract_and_store_hard_block_model_ports(storage_of_hard_block_info, output_ports, hard_block_arch_model_name,hard_block_port_index, OUTPUT_PORTS);
+    hard_block_port_index += extract_and_store_hard_block_model_ports(storage_of_hard_block_info, hard_block_arch_model->get_output_ports(), hard_block_arch_model_name,hard_block_port_index, OUTPUT_PORTS);
 
     // check to see if the hard block has no ports
     if (hard_block_port_index == HARD_BLOCK_WITH_NO_PORTS)
@@ -524,7 +520,7 @@ static bool create_and_initialize_all_hard_block_ports(t_model* hard_block_arch_
  *                             created in here when storing it inside
  *                             the 't_hard_block_recog' structure. 
  */
-static void create_hard_block_port_info_structure(t_hard_block_recog* storage_of_hard_block_info, std::string hard_block_type_name)
+static void create_hard_block_port_info_structure(t_hard_block_recog* storage_of_hard_block_info, const std::string& hard_block_type_name)
 {
     t_hard_block_port_info curr_hard_block_port_storage;
 
@@ -597,23 +593,20 @@ static void create_hard_block_port_info_structure(t_hard_block_recog* storage_of
  *                  being processed are input or output ports.
  *  
  */
-static int extract_and_store_hard_block_model_ports(t_hard_block_recog* storage_of_hard_block_info, t_model_ports* curr_hard_block_model_port, std::string curr_hard_block_type_name,int port_index, std::string port_type)
+static int extract_and_store_hard_block_model_ports(t_hard_block_recog* storage_of_hard_block_info,vtr::Range<t_model::port_iter_t > hard_block_model_ports, const std::string& curr_hard_block_type_name,int port_index, const std::string& port_type)
 {
-    t_array_ref* equivalent_hard_block_node_port_array = NULL;
+    t_array_ref* equivalent_hard_block_node_port_array = nullptr;
     int starting_port_index = port_index;
 
     /* 't_model_ports' is setup as a linked list structure.
         So iterate through the list.*/
-    while (curr_hard_block_model_port != NULL)
+    for (auto curr_hard_block_model_port : hard_block_model_ports)
     {
         // convert the current port from the 't_model_port' to 't_node_port_association structure. and store it inside an array. 
         equivalent_hard_block_node_port_array = convert_hard_block_model_port_to_hard_block_node_port(curr_hard_block_model_port);
 
         // take the converted port array from above and store it
         store_hard_block_port_info(storage_of_hard_block_info, curr_hard_block_type_name, curr_hard_block_model_port->name, &equivalent_hard_block_node_port_array, &port_index);
-
-        curr_hard_block_model_port = curr_hard_block_model_port->next;
-
     }
 
     // check to see whether the hard block has no input or output ports

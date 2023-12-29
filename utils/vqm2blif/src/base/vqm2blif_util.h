@@ -175,7 +175,7 @@ void construct_filename (char* filename, const char* path, const char* ext);	//c
 
 //Naming Conventions
 
-string generate_opname (t_node* vqm_node, t_model* arch_models, string device);	//generates a mode-hashed name for a subcircuit instance
+string generate_opname (t_node* vqm_node, t_model* arch_models, const string& device);	//generates a mode-hashed name for a subcircuit instance
 
 void generate_opname_ram (t_node* vqm_node, t_model* arch_models, string& mode_hash, string device); //mode-hash for RAM blocks
 
