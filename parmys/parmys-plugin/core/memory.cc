@@ -1168,8 +1168,8 @@ void pad_memory_input_port(nnode_t *node, netlist_t *netlist, t_model *model, co
 
     int port_size = node->input_port_sizes[port_number];
 
-    t_model_ports *ports = get_model_port(model->get_output_ports(), port_name);
-
+    t_model_ports *ports = get_model_port(model->get_input_ports(), port_name);
+    
     oassert(ports != NULL);
 
     int target_size = ports->size;
