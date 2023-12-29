@@ -663,44 +663,42 @@ bool primitive_memory_sibling_feasible(const AtomBlockId blk_id, const t_pb_type
     //Since the atom netlist stores only in-use ports, we iterate over the model to ensure
     //all ports are compared
     const t_model* model = cur_pb_type->model;
-    for (t_model_ports* port : {model->inputs, model->outputs}) {
-        for (; port; port = port->next) {
-            if (data_ports.count(port)) {
-                //Don't check data ports
-                continue;
+    for (t_model_ports* port : model->ports) {
+        if (data_ports.count(port)) {
+            //Don't check data ports
+            continue;
+        }
+
+        //Note: VPR doesn't support multi-driven nets, so all outputs
+        //should be data ports, otherwise the siblings will both be
+        //driving the output net
+
+        //Get the ports from each primitive
+        auto blk_port_id = atom_ctx.nlist.find_atom_port(blk_id, port);
+        auto sib_port_id = atom_ctx.nlist.find_atom_port(sibling_blk_id, port);
+
+        //Check that all nets (including unconnected nets) match
+        for (int ipin = 0; ipin < port->size; ++ipin) {
+            //The nets are initialized as invalid (i.e. disconnected)
+            AtomNetId blk_net_id;
+            AtomNetId sib_net_id;
+
+            //We can get the actual net provided the port exists
+            //
+            //Note that if the port did not exist, the net is left
+            //as invalid/disconneced
+            if (blk_port_id) {
+                blk_net_id = atom_ctx.nlist.port_net(blk_port_id, ipin);
+            }
+            if (sib_port_id) {
+                sib_net_id = atom_ctx.nlist.port_net(sib_port_id, ipin);
             }
 
-            //Note: VPR doesn't support multi-driven nets, so all outputs
-            //should be data ports, otherwise the siblings will both be
-            //driving the output net
-
-            //Get the ports from each primitive
-            auto blk_port_id = atom_ctx.nlist.find_atom_port(blk_id, port);
-            auto sib_port_id = atom_ctx.nlist.find_atom_port(sibling_blk_id, port);
-
-            //Check that all nets (including unconnected nets) match
-            for (int ipin = 0; ipin < port->size; ++ipin) {
-                //The nets are initialized as invalid (i.e. disconnected)
-                AtomNetId blk_net_id;
-                AtomNetId sib_net_id;
-
-                //We can get the actual net provided the port exists
-                //
-                //Note that if the port did not exist, the net is left
-                //as invalid/disconneced
-                if (blk_port_id) {
-                    blk_net_id = atom_ctx.nlist.port_net(blk_port_id, ipin);
-                }
-                if (sib_port_id) {
-                    sib_net_id = atom_ctx.nlist.port_net(sib_port_id, ipin);
-                }
-
-                //The sibling and block must have the same (possibly disconnected)
-                //net on this pin
-                if (blk_net_id != sib_net_id) {
-                    //Nets do not match, not feasible
-                    return false;
-                }
+            //The sibling and block must have the same (possibly disconnected)
+            //net on this pin
+            if (blk_net_id != sib_net_id) {
+                //Nets do not match, not feasible
+                return false;
             }
         }
     }
@@ -2584,11 +2582,11 @@ t_molecule_stats calc_molecule_stats(const t_pack_molecule* molecule) {
 
         const t_model* model = atom_ctx.nlist.block_model(blk);
 
-        for (const t_model_ports* input_port = model->inputs; input_port != nullptr; input_port = input_port->next) {
+        for (const t_model_ports* input_port : model->get_input_ports()) {
             molecule_stats.num_input_pins += input_port->size;
         }
 
-        for (const t_model_ports* output_port = model->outputs; output_port != nullptr; output_port = output_port->next) {
+        for (const t_model_ports* output_port : model->get_output_ports()) {
             molecule_stats.num_output_pins += output_port->size;
         }
     }

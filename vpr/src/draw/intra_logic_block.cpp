@@ -644,24 +644,20 @@ void find_pin_index_at_model_scope(const AtomPinId pin_id, const AtomBlockId blk
     int pin_cnt = 0;
     *pin_index = -1; //initialize
     const t_model* model = atom_ctx.nlist.block_model(blk_id);
-    for (const t_model_ports* port : {model->inputs, model->outputs}) {
-        while (port) {
-            if (port == model_port) {
-                //This is the port the pin is associated with, record it's index
+    for (const t_model_ports* port : model->ports) {
+        if (port == model_port) {
+            //This is the port the pin is associated with, record it's index
 
-                //Get the pin index in the port
-                int atom_port_index = atom_ctx.nlist.pin_port_bit(pin_id);
+            //Get the pin index in the port
+            int atom_port_index = atom_ctx.nlist.pin_port_bit(pin_id);
 
-                //The index of this pin in the model is the pins counted so-far
-                //(i.e. accross previous ports) plus the index in the port
-                *pin_index = pin_cnt + atom_port_index;
-            }
-
-            //Running total of model pins seen so-far
-            pin_cnt += port->size;
-
-            port = port->next;
+            //The index of this pin in the model is the pins counted so-far
+            //(i.e. accross previous ports) plus the index in the port
+            *pin_index = pin_cnt + atom_port_index;
         }
+
+        //Running total of model pins seen so-far
+        pin_cnt += port->size;
     }
 
     VTR_ASSERT(*pin_index != -1);

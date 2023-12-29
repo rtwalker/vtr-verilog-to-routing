@@ -97,11 +97,9 @@ const t_model* find_model(const t_model* models, const std::string& name, bool r
 const t_model_ports* find_model_port(const t_model* model, const std::string& name, bool required) {
     VTR_ASSERT(model);
 
-    for (const t_model_ports* model_ports : {model->inputs, model->outputs}) {
-        for (const t_model_ports* port = model_ports; port != nullptr; port = port->next) {
-            if (port->name == name) {
-                return port;
-            }
+    for (const t_model_ports* port : model->ports) {
+        if (port->name == name) {
+            return port;
         }
     }
 

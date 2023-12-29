@@ -205,7 +205,7 @@ AtomPinId AtomNetlist::create_pin(const AtomPortId port_id, BitIndex port_bit, c
     return pin_id;
 }
 
-AtomNetId AtomNetlist::create_net(const std::string name) {
+AtomNetId AtomNetlist::create_net(const std::string& name) {
     AtomNetId net_id = Netlist::create_net(name);
 
     //Check post-conditions: size
@@ -214,11 +214,11 @@ AtomNetId AtomNetlist::create_net(const std::string name) {
     return net_id;
 }
 
-AtomNetId AtomNetlist::add_net(const std::string name, AtomPinId driver, std::vector<AtomPinId> sinks) {
+AtomNetId AtomNetlist::add_net(const std::string& name, AtomPinId driver, std::vector<AtomPinId> sinks) {
     return Netlist::add_net(name, driver, sinks);
 }
 
-void AtomNetlist::add_net_alias(const std::string net_name, const std::string alias_net_name) {
+void AtomNetlist::add_net_alias(const std::string& net_name, const std::string& alias_net_name) {
     auto net_id = find_net(net_name);
     VTR_ASSERT(net_id != AtomNetId::INVALID());
 

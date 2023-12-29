@@ -41,7 +41,7 @@ struct NetlistReader {
   public:
     NetlistReader(AtomNetlist& main_netlist,
                   LogicalNetlist::Netlist::Reader& netlist_reader,
-                  const std::string netlist_id,
+                  const std::string& netlist_id,
                   const char* netlist_file,
                   const t_arch& arch)
         : main_netlist_(main_netlist)
@@ -165,13 +165,13 @@ struct NetlistReader {
                 switch (dir) {
                     case LogicalNetlist::Netlist::Direction::INPUT:
                         blk_id = main_netlist_.create_block(port_name, input_model);
-                        port_id = main_netlist_.create_port(blk_id, input_model->outputs);
+                        port_id = main_netlist_.create_port(blk_id, input_model->get_output_port_at(0));
                         net_id = main_netlist_.create_net(port_name);
                         main_netlist_.create_pin(port_id, 0, net_id, PinType::DRIVER);
                         break;
                     case LogicalNetlist::Netlist::Direction::OUTPUT:
                         blk_id = main_netlist_.create_block(port_name, output_model);
-                        port_id = main_netlist_.create_port(blk_id, output_model->inputs);
+                        port_id = main_netlist_.create_port(blk_id, output_model->get_input_port_at(0));
                         net_id = main_netlist_.create_net(port_name);
                         main_netlist_.create_pin(port_id, 0, net_id, PinType::SINK);
                         break;
@@ -188,9 +188,9 @@ struct NetlistReader {
 
         // Set the max size of the LUT
         int lut_size = 0;
-        for (auto lut : arch_.lut_cells)
+        for (const auto& lut : arch_.lut_cells)
             lut_size = std::max((int)lut.inputs.size(), lut_size);
-        blk_model->inputs[0].size = lut_size;
+        (*blk_model->get_input_ports().begin())->size = lut_size;
 
         auto top_cell = nr_.getCellList()[nr_.getTopInst().getCell()];
         auto decl_list = nr_.getCellDecls();
@@ -213,7 +213,7 @@ struct NetlistReader {
             insts.emplace_back(cell_inst, width, init_param);
         }
 
-        for (auto inst : insts) {
+        for (const auto& inst : insts) {
             size_t inst_idx;
             int lut_width;
             std::string init_param;
@@ -315,8 +315,8 @@ struct NetlistReader {
 
             AtomBlockId blk_id = main_netlist_.create_block(inst_name, blk_model, truth_table);
 
-            AtomPortId iport_id = main_netlist_.create_port(blk_id, blk_model->inputs);
-            AtomPortId oport_id = main_netlist_.create_port(blk_id, blk_model->outputs);
+            AtomPortId iport_id = main_netlist_.create_port(blk_id, blk_model->get_input_port_at(0));
+            AtomPortId oport_id = main_netlist_.create_port(blk_id, blk_model->get_output_port_at(0));
 
             auto cell_lib = decl_list[inst_list[inst_idx].getCell()];
             auto port_net_map = port_net_maps_.at(inst_idx);
@@ -399,7 +399,7 @@ struct NetlistReader {
             blk_id = main_netlist_.create_block(inst_name, blk_model);
 
             std::unordered_set<AtomPortId> added_ports;
-            for (auto port_net : port_net_map) {
+            for (const auto& port_net : port_net_map) {
                 auto port_idx = port_net.first.first;
                 auto port_bit = port_net.first.second;
 
@@ -436,24 +436,22 @@ struct NetlistReader {
             }
 
             // Bind unconnected ports to VCC by default
-            for (const t_model_ports* ports : {blk_model->inputs, blk_model->outputs}) {
-                for (const t_model_ports* port = ports; port != nullptr; port = port->next) {
-                    AtomPortId port_id = main_netlist_.create_port(blk_id, port);
+            for (const t_model_ports* port : blk_model->ports) {
+                AtomPortId port_id = main_netlist_.create_port(blk_id, port);
 
-                    if (added_ports.count(port_id))
-                        continue;
+                if (added_ports.count(port_id))
+                    continue;
 
-                    if (port->dir != IN_PORT)
-                        continue;
+                if (port->dir != IN_PORT)
+                    continue;
 
-                    //Make the net
-                    AtomNetId net_id = main_netlist_.create_net(arch_.vcc_net);
+                //Make the net
+                AtomNetId net_id = main_netlist_.create_net(arch_.vcc_net);
 
-                    PinType pin_type = PinType::SINK;
-                    //Make the pin
-                    for (int i = 0; i < port->size; i++)
-                        main_netlist_.create_pin(port_id, i, net_id, pin_type);
-                }
+                PinType pin_type = PinType::SINK;
+                //Make the pin
+                for (int i = 0; i < port->size; i++)
+                    main_netlist_.create_pin(port_id, i, net_id, pin_type);
             }
         }
     }
@@ -461,7 +459,7 @@ struct NetlistReader {
     //
     // Utilities
     //
-    const t_model* find_model(std::string name) {
+    const t_model* find_model(const std::string& name) {
         for (const auto models : {arch_.models, arch_.model_library})
             for (const t_model* model = models; model != nullptr; model = model->next)
                 if (name == model->name)
@@ -470,10 +468,9 @@ struct NetlistReader {
         vpr_throw(VPR_ERROR_IC_NETLIST_F, netlist_file_, -1, "Failed to find matching architecture model for '%s'\n", name.c_str());
     }
 
-    const t_model_ports* find_model_port(const t_model* blk_model, std::string name) {
+    const t_model_ports* find_model_port(const t_model* blk_model, const std::string& name) {
         //We now look through all the ports on the model looking for the matching port
-        for (const t_model_ports* ports : {blk_model->inputs, blk_model->outputs})
-            for (const t_model_ports* port = ports; port != nullptr; port = port->next)
+        for (const t_model_ports* port : blk_model->ports)
                 if (name == std::string(port->name))
                     return port;
 
@@ -503,8 +500,8 @@ struct NetlistReader {
         return port_bit;
     }
 
-    std::tuple<bool, int, std::string> is_lut_cell(std::string cell_name) {
-        for (auto lut_cell : arch_.lut_cells) {
+    std::tuple<bool, int, std::string> is_lut_cell(const std::string& cell_name) {
+        for (const auto& lut_cell : arch_.lut_cells) {
             if (cell_name == lut_cell.name) {
                 auto init_param = lut_cell.init_param;
 

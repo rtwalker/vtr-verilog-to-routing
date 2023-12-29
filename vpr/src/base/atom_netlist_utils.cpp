@@ -367,8 +367,7 @@ void print_netlist_as_blif(FILE* f, const AtomNetlist& netlist) {
         fprintf(f, ".model %s\n", model->name);
 
         fprintf(f, ".inputs");
-        const t_model_ports* port = model->inputs;
-        while (port) {
+        for (auto port : model->get_input_ports()) {
             VTR_ASSERT(port->size >= 0);
             if (port->size == 1) {
                 fprintf(f, " \\\n");
@@ -379,13 +378,11 @@ void print_netlist_as_blif(FILE* f, const AtomNetlist& netlist) {
                     fprintf(f, "%s%s[%d]", INDENT, port->name, i);
                 }
             }
-            port = port->next;
         }
 
         fprintf(f, "\n");
         fprintf(f, ".outputs");
-        port = model->outputs;
-        while (port) {
+        for (auto port : model->get_output_ports()) {
             VTR_ASSERT(port->size >= 0);
             if (port->size == 1) {
                 fprintf(f, " \\\n");
@@ -396,7 +393,6 @@ void print_netlist_as_blif(FILE* f, const AtomNetlist& netlist) {
                     fprintf(f, "%s%s[%d]", INDENT, port->name, i);
                 }
             }
-            port = port->next;
         }
         fprintf(f, "\n");
 
@@ -1356,7 +1352,7 @@ std::set<AtomNetId> find_netlist_physical_clock_nets(const AtomNetlist& netlist)
             clock_gen_ports[model] = {};
 
             //Look at all the ports to find clock generators
-            for (const t_model_ports* model_port = model->outputs; model_port; model_port = model_port->next) {
+            for (const t_model_ports* model_port : model->get_output_ports()) {
                 VTR_ASSERT(model_port->dir == OUT_PORT);
                 if (model_port->is_clock) {
                     //Clock generator
