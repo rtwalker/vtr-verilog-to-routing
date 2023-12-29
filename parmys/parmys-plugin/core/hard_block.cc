@@ -43,12 +43,18 @@ void register_hb_port_size(t_model_ports *hb_ports, int size)
      */
 }
 
-t_model_ports *get_model_port(t_model_ports *ports, const char *name)
+t_model_ports *get_model_port(vtr::Range<t_model::port_iter_t> ports, const char *name)
 {
-    while (ports && strcmp(ports->name, name))
-        ports = ports->next;
+    t_model_ports* found_port = nullptr;
 
-    return ports;
+    for (auto port : ports) {
+        if (strcmp(port->name, name) == 0) {
+            found_port = port;
+            break;
+        }
+    }
+
+    return found_port;
 }
 
 void cache_hard_block_names()
@@ -72,27 +78,27 @@ void register_hard_blocks()
 
     if (single_port_rams) {
         if (configuration.split_memory_width) {
-            register_hb_port_size(get_model_port(single_port_rams->inputs, "data"), 1);
+            register_hb_port_size(get_model_port(single_port_rams->get_input_ports(), "data"), 1);
 
-            register_hb_port_size(get_model_port(single_port_rams->outputs, "out"), 1);
+            register_hb_port_size(get_model_port(single_port_rams->get_output_ports(), "out"), 1);
         }
 
-        register_hb_port_size(get_model_port(single_port_rams->inputs, "addr"), get_sp_ram_split_depth());
+        register_hb_port_size(get_model_port(single_port_rams->get_input_ports(), "addr"), get_sp_ram_split_depth());
     }
 
     if (dual_port_rams) {
         if (configuration.split_memory_width) {
-            register_hb_port_size(get_model_port(dual_port_rams->inputs, "data1"), 1);
-            register_hb_port_size(get_model_port(dual_port_rams->inputs, "data2"), 1);
+            register_hb_port_size(get_model_port(dual_port_rams->get_input_ports(), "data1"), 1);
+            register_hb_port_size(get_model_port(dual_port_rams->get_input_ports(), "data2"), 1);
 
-            register_hb_port_size(get_model_port(dual_port_rams->outputs, "out1"), 1);
-            register_hb_port_size(get_model_port(dual_port_rams->outputs, "out2"), 1);
+            register_hb_port_size(get_model_port(dual_port_rams->get_output_ports(), "out1"), 1);
+            register_hb_port_size(get_model_port(dual_port_rams->get_output_ports(), "out2"), 1);
         }
 
         int split_depth = get_dp_ram_split_depth();
 
-        register_hb_port_size(get_model_port(dual_port_rams->inputs, "addr1"), split_depth);
-        register_hb_port_size(get_model_port(dual_port_rams->inputs, "addr2"), split_depth);
+        register_hb_port_size(get_model_port(dual_port_rams->get_input_ports(), "addr1"), split_depth);
+        register_hb_port_size(get_model_port(dual_port_rams->get_input_ports(), "addr2"), split_depth);
     }
 }
 
@@ -200,7 +206,6 @@ void cell_hard_block(nnode_t *node, Yosys::Module *module, netlist_t *netlist, Y
 
 void output_hard_blocks_yosys(Yosys::Design *design)
 {
-    t_model_ports *hb_ports;
     t_model *hard_blocks;
 
     hard_blocks = Arch.models;
@@ -225,8 +230,7 @@ void output_hard_blocks_yosys(Yosys::Design *design)
                 Yosys::log_error("Duplicate definition of module %s!\n", Yosys::log_id(module->name));
             design->add(module);
 
-            hb_ports = hard_blocks->inputs;
-            while (hb_ports != NULL) {
+            for (auto hb_ports : hard_blocks->get_input_ports()) {
                 for (int i = 0; i < hb_ports->size; i++) {
                     std::string w_name;
                     if (hb_ports->size == 1)
@@ -243,13 +247,10 @@ void output_hard_blocks_yosys(Yosys::Design *design)
                         wideports_cache[wp.first].second = true;
                     }
                 }
-
-                hb_ports = hb_ports->next;
             }
 
             // fprintf(out, "\n.outputs");
-            hb_ports = hard_blocks->outputs;
-            while (hb_ports != NULL) {
+            for (auto hb_ports : hard_blocks->get_output_ports()) {
                 for (int i = 0; i < hb_ports->size; i++) {
                     std::string w_name;
                     if (hb_ports->size == 1)
@@ -266,8 +267,6 @@ void output_hard_blocks_yosys(Yosys::Design *design)
                         wideports_cache[wp.first].second = false;
                     }
                 }
-
-                hb_ports = hb_ports->next;
             }
 
             handle_wideports_cache(&wideports_cache, module);

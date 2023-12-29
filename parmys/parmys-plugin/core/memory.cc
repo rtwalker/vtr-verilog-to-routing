@@ -857,7 +857,7 @@ void split_dp_memory_width(nnode_t *node, int target_size)
  */
 long get_sp_ram_split_depth()
 {
-    t_model_ports *hb_ports = get_model_port(single_port_rams->inputs, "addr");
+    t_model_ports *hb_ports = get_model_port(single_port_rams->get_input_ports(), "addr");
     long split_size;
     if (configuration.split_memory_depth == -1) /* MIN */
         split_size = hb_ports->min_size;
@@ -879,7 +879,7 @@ long get_sp_ram_split_depth()
  */
 long get_dp_ram_split_depth()
 {
-    t_model_ports *hb_ports = get_model_port(dual_port_rams->inputs, "addr1");
+    t_model_ports *hb_ports = get_model_port(dual_port_rams->get_input_ports(), "addr1");
     long split_depth;
     if (configuration.split_memory_depth == -1) /* MIN */
         split_depth = hb_ports->min_size;
@@ -906,7 +906,7 @@ int get_sp_ram_split_width()
     } else {
         t_model *model = single_port_rams;
         char port_name[] = "data";
-        t_model_ports *ports = get_model_port(model->inputs, port_name);
+        t_model_ports *ports = get_model_port(model->get_input_ports(), port_name);
         return ports->size;
     }
 }
@@ -922,7 +922,7 @@ int get_dp_ram_split_width()
     } else {
         t_model *model = dual_port_rams;
         char port_name[] = "data1";
-        t_model_ports *ports = get_model_port(model->inputs, port_name);
+        t_model_ports *ports = get_model_port(model->get_input_ports(), port_name);
         return ports->size;
     }
 }
@@ -1126,7 +1126,7 @@ void pad_memory_output_port(nnode_t *node, netlist_t * /*netlist*/, t_model *mod
 
     int port_size = node->output_port_sizes[port_number];
 
-    t_model_ports *ports = get_model_port(model->outputs, port_name);
+    t_model_ports *ports = get_model_port(model->get_output_ports(), port_name);
 
     oassert(ports != NULL);
 
@@ -1168,7 +1168,7 @@ void pad_memory_input_port(nnode_t *node, netlist_t *netlist, t_model *model, co
 
     int port_size = node->input_port_sizes[port_number];
 
-    t_model_ports *ports = get_model_port(model->inputs, port_name);
+    t_model_ports *ports = get_model_port(model->get_output_ports(), port_name);
 
     oassert(ports != NULL);
 

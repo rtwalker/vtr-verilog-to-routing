@@ -41,8 +41,8 @@ struct ParmysArchPass : public Pass {
         }
         design->add(module);
 
-        t_model_ports *input_port = hb->inputs;
-        while (input_port) {
+//        t_model_ports *input_port = hb->inputs;
+        for (auto input_port : hb->get_input_ports()) {
             for (int i = 0; i < input_port->size; i++) {
                 std::string w_name = stringf("%s[%d]", input_port->name, i);
                 RTLIL::Wire *wire = to_wire(w_name, module);
@@ -53,12 +53,9 @@ struct ParmysArchPass : public Pass {
                     wideports_cache[wp.first].second = true;
                 }
             }
-
-            input_port = input_port->next;
         }
 
-        t_model_ports *output_port = hb->outputs;
-        while (output_port) {
+        for (auto output_port : hb->get_output_ports()) {
             for (int i = 0; i < output_port->size; i++) {
                 std::string w_name = stringf("%s[%d]", output_port->name, i);
                 RTLIL::Wire *wire = to_wire(w_name, module);
@@ -69,8 +66,6 @@ struct ParmysArchPass : public Pass {
                     wideports_cache[wp.first].second = false;
                 }
             }
-
-            output_port = output_port->next;
         }
 
         handle_wideports_cache(&wideports_cache, module);

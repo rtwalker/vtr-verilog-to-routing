@@ -27,6 +27,6 @@ t_model *find_hard_block(const char *name);
 void cell_hard_block(nnode_t *node, Yosys::Module *module, netlist_t *netlist, Yosys::Design *design);
 void output_hard_blocks_yosys(Yosys::Design *design);
 void instantiate_hard_block(nnode_t *node, short mark, netlist_t *netlist);
-t_model_ports *get_model_port(t_model_ports *ports, const char *name);
+t_model_ports *get_model_port(vtr::Range<t_model::port_iter_t> ports, const char *name);
 
 #endif // _HARD_BLOCK_H_
