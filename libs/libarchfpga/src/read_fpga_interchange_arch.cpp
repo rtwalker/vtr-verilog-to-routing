@@ -156,16 +156,15 @@ static float get_corner_value(Device::CornerModel::Reader model, const char* spe
 }
 
 /** @brief Returns the port corresponding to the given model in the architecture */
-static t_model_ports* get_model_port(t_arch* arch, std::string model, std::string port, bool fail = true) {
+static t_model_ports* get_model_port(t_arch* arch, const std::string& model, const std::string& port, bool fail = true) {
     for (t_model* m : {arch->models, arch->model_library}) {
         for (; m != nullptr; m = m->next) {
             if (std::string(m->name) != model)
                 continue;
 
-            for (t_model_ports* p : {m->inputs, m->outputs})
-                for (; p != nullptr; p = p->next)
-                    if (std::string(p->name) == port)
-                        return p;
+            for (t_model_ports* p : m->ports)
+                if (std::string(p->name) == port)
+                    return p;
         }
     }
 
@@ -177,7 +176,7 @@ static t_model_ports* get_model_port(t_arch* arch, std::string model, std::strin
 }
 
 /** @brief Returns the specified architecture model */
-static t_model* get_model(t_arch* arch, std::string model) {
+static t_model* get_model(t_arch* arch, const std::string& model) {
     for (t_model* m : {arch->models, arch->model_library})
         for (; m != nullptr; m = m->next)
             if (std::string(m->name) == model)
@@ -204,8 +203,8 @@ static T* get_type_by_name(const char* type_name, std::vector<T>& types) {
 static t_port get_generic_port(t_arch* arch,
                                t_pb_type* pb_type,
                                PORTS dir,
-                               std::string name,
-                               std::string model = "",
+                               const std::string& name,
+                               const std::string& model = "",
                                int num_pins = 1) {
     t_port port;
     port.parent_pb_type = pb_type;
@@ -229,7 +228,7 @@ static t_port get_generic_port(t_arch* arch,
 }
 
 /** @brief Returns true if a given port name exists in the given complex block */
-static bool block_port_exists(t_pb_type* pb_type, std::string port_name) {
+static bool block_port_exists(t_pb_type* pb_type, const std::string& port_name) {
     for (int iport = 0; iport < pb_type->num_ports; iport++) {
         const t_port port = pb_type->ports[iport];
 
@@ -241,7 +240,7 @@ static bool block_port_exists(t_pb_type* pb_type, std::string port_name) {
 }
 
 /** @brief Returns a pack pattern given it's name, input and output strings */
-static t_pin_to_pin_annotation get_pack_pattern(std::string pp_name, std::string input, std::string output) {
+static t_pin_to_pin_annotation get_pack_pattern(const std::string& pp_name, const std::string& input, const std::string& output) {
     t_pin_to_pin_annotation pp;
 
     pp.prop = (int*)vtr::calloc(1, sizeof(int));
@@ -930,7 +929,7 @@ struct ArchReader {
                 // Check whether the model can be placed in at least one
                 // BEL that was marked as valid (e.g. added to the take_bels_ data structure)
                 bool has_bel = false;
-                for (auto bel_cell_map : bel_cell_mappings_) {
+                for (const auto& bel_cell_map : bel_cell_mappings_) {
                     auto bel_name = bel_cell_map.first;
 
                     bool take_bel = take_bels_.count(bel_name) != 0;
@@ -938,7 +937,7 @@ struct ArchReader {
                     if (!take_bel || is_lut(str(bel_name)))
                         continue;
 
-                    for (auto map : bel_cell_map.second)
+                    for (const auto& map : bel_cell_map.second)
                         has_bel |= primitive.getName() == map.cell;
                 }
 
@@ -1007,7 +1006,7 @@ struct ArchReader {
             //       https://github.com/chipsalliance/fpga-interchange-schema/issues/66
 
             //Sanity checks
-            if (model_port->is_clock == true && model_port->is_non_clock_global == true) {
+            if (model_port->is_clock && model_port->is_non_clock_global) {
                 archfpga_throw(arch_file_, __LINE__,
                                "Model port '%s' cannot be both a clock and a non-clock signal simultaneously", model_port->name);
             }
@@ -1034,14 +1033,7 @@ struct ArchReader {
 
             port_names.insert(std::pair<std::string, enum PORTS>(model_port->name, dir));
             //Add the port
-            if (dir == IN_PORT) {
-                model_port->next = model->inputs;
-                model->inputs = model_port;
-
-            } else if (dir == OUT_PORT) {
-                model_port->next = model->outputs;
-                model->outputs = model_port;
-            }
+            model->add_port(model_port, dir);
         }
 
         return true;
@@ -1486,7 +1478,7 @@ struct ArchReader {
         std::set<t_bel_cell_mapping> maps(bel_cell_mappings_[bel.getName()]);
 
         std::vector<t_bel_cell_mapping> map_to_erase;
-        for (auto map : maps) {
+        for (const auto& map : maps) {
             auto name = str(map.cell);
             bool is_compatible = map.site == site.getName();
 
@@ -1516,7 +1508,7 @@ struct ArchReader {
                 map_to_erase.push_back(map);
         }
 
-        for (auto map : map_to_erase)
+        for (const auto& map : map_to_erase)
             VTR_ASSERT(maps.erase(map) == 1);
 
         int num_modes = maps.size();
@@ -1527,7 +1519,7 @@ struct ArchReader {
         pb_type->modes = new t_mode[num_modes];
 
         int count = 0;
-        for (auto map : maps) {
+        for (const auto& map : maps) {
             if (map.site != site.getName())
                 continue;
 
@@ -1730,7 +1722,7 @@ struct ArchReader {
         int pin_count = 0;
         for (auto dir : {IN_PORT, OUT_PORT}) {
             int pins_dir_count = 0;
-            for (auto pin_tuple : pins) {
+            for (const auto& pin_tuple : pins) {
                 std::string pin_name;
                 PORTS pin_dir;
                 int num_pins;
@@ -1767,7 +1759,7 @@ struct ArchReader {
         std::unordered_set<std::string> names;
 
         // Handle site wires, namely direct interconnects
-        for (auto ic_pair : ics) {
+        for (const auto& ic_pair : ics) {
             auto ic_name = ic_pair.first;
             auto ic_data = ic_pair.second;
 
@@ -1808,10 +1800,10 @@ struct ArchReader {
 
                 std::unordered_map<t_interconnect*, std::set<std::string>> pps_map;
 
-                for (auto pp : backward_pps_map)
+                for (const auto& pp : backward_pps_map)
                     pps_map.emplace(pp.first, std::set<std::string>{});
 
-                for (auto pp : forward_pps_map)
+                for (const auto& pp : forward_pps_map)
                     pps_map.emplace(pp.first, std::set<std::string>{});
 
                 // Cross-product of all pack-patterns added both when exploring backwards and forward.
@@ -1821,10 +1813,10 @@ struct ArchReader {
                 //      - forward: OPAD
                 //  Final pack patterns:
                 //      - OBUFDS_OPAD, OBUF_OPAD
-                for (auto for_pp_pair : forward_pps_map)
-                    for (auto back_pp_pair : backward_pps_map)
-                        for (auto for_pp : for_pp_pair.second)
-                            for (auto back_pp : back_pp_pair.second) {
+                for (const auto& for_pp_pair : forward_pps_map)
+                    for (const auto& back_pp_pair : backward_pps_map)
+                        for (const auto& for_pp : for_pp_pair.second)
+                            for (const auto& back_pp : back_pp_pair.second) {
                                 std::string pp_name = for_pp + "_" + back_pp;
                                 pps_map.at(for_pp_pair.first).insert(pp_name);
                                 pps_map.at(back_pp_pair.first).insert(pp_name);
@@ -1838,7 +1830,7 @@ struct ArchReader {
                     pp_ic->annotations = new t_pin_to_pin_annotation[num_pp];
 
                     int idx = 0;
-                    for (auto pp_name : pair.second)
+                    for (const auto& pp_name : pair.second)
                         pp_ic->annotations[idx++] = get_pack_pattern(pp_name, pp_ic->input_string, pp_ic->output_string);
                 }
             }
@@ -1858,7 +1850,7 @@ struct ArchReader {
 
         bool is_backward = direction == BACKWARD;
 
-        for (auto ep : ic_endpoints) {
+        for (const auto& ep : ic_endpoints) {
             auto parts = vtr::split(ep, ".");
             auto bel = parts[0];
             auto pin = parts[1];
@@ -1896,14 +1888,14 @@ struct ArchReader {
                         std::string ic_to_find = bel + "." + pin_name;
 
                         bool found = false;
-                        for (auto out : vtr::split(is_backward ? other_ic->output_string : other_ic->input_string, " "))
+                        for (const auto& out : vtr::split(is_backward ? other_ic->output_string : other_ic->input_string, " "))
                             found |= out == ic_to_find;
 
                         if (found) {
                             // An output interconnect to propagate was found, continue searching
                             auto res = propagate_pack_patterns(other_ic, site, direction);
 
-                            for (auto pp_map : res)
+                            for (const auto& pp_map : res)
                                 pps_map.emplace(pp_map.first, pp_map.second);
                         }
                     }
@@ -2117,7 +2109,7 @@ struct ArchReader {
         mode->pb_type_children = new t_pb_type[mode->num_pb_type_children];
 
         int count = 0;
-        for (auto const_cell : const_cells) {
+        for (const auto& const_cell : const_cells) {
             auto leaf_pb_type = &mode->pb_type_children[count];
 
             std::string leaf_name = const_cell.first;
@@ -2164,7 +2156,7 @@ struct ArchReader {
         std::vector<std::pair<std::string, std::string>> const_cells{arch_->gnd_cell, arch_->vcc_cell};
 
         // Create constant models
-        for (auto const_cell : const_cells) {
+        for (const auto& const_cell : const_cells) {
             t_model* model = new t_model;
             model->index = arch_->models->index + 1;
 
@@ -2177,8 +2169,7 @@ struct ArchReader {
 
             model_port->min_size = 1;
             model_port->size = 1;
-            model_port->next = model->outputs;
-            model->outputs = model_port;
+            model->add_port(model_port, OUT_PORT);
 
             model->next = arch_->models;
             arch_->models = model;
@@ -2207,7 +2198,7 @@ struct ArchReader {
         sub_tile.index = 0;
         sub_tile.name = vtr::strdup(const_block_.c_str());
         int count = 0;
-        for (auto const_cell : const_cells) {
+        for (const auto& const_cell : const_cells) {
             sub_tile.sub_tile_to_tile_pin_indices.push_back(count);
 
             t_physical_tile_port port;
@@ -2241,7 +2232,7 @@ struct ArchReader {
         for (auto package : ar_.getPackages())
             packages.push_back(str(package.getName()));
 
-        for (auto name : packages) {
+        for (const auto& name : packages) {
             t_grid_def grid_def;
             int num_layers = 1;
             grid_def.layers.resize(num_layers);

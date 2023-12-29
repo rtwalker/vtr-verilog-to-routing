@@ -2365,7 +2365,7 @@ static void ProcessModelPorts(pugi::xml_node port_group, t_model* model, std::se
         }
 
         //Sanity checks
-        if (model_port->is_clock == true && model_port->is_non_clock_global == true) {
+        if (model_port->is_clock && model_port->is_non_clock_global) {
             archfpga_throw(loc_data.filename_c_str(), loc_data.line(port),
                            "Model port '%s' cannot be both a clock and a non-clock signal simultaneously", model_port->name);
         }
@@ -2386,16 +2386,7 @@ static void ProcessModelPorts(pugi::xml_node port_group, t_model* model, std::se
         }
 
         //Add the port
-        if (dir == IN_PORT) {
-            model_port->next = model->inputs;
-            model->inputs = model_port;
-
-        } else {
-            VTR_ASSERT(dir == OUT_PORT);
-
-            model_port->next = model->outputs;
-            model->outputs = model_port;
-        }
+        model->add_port(model_port, dir);
     }
 }
 

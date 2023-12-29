@@ -11,6 +11,8 @@
 #define LOGIC_TYPES_H
 
 #include "vtr_list.h"
+#include "vtr_range.h"
+#include "vtr_assert.h"
 #include <vector>
 #include <string>
 
@@ -35,15 +37,42 @@ struct t_model_ports {
     std::string clock;                                 /* The clock associated with this pin (if the pin is sequential) */
     std::vector<std::string> combinational_sink_ports; /* The other ports on this model which are combinationally driven by this port */
 
-    t_model_ports* next = nullptr; /* next port */
-
     int index = -1; /* indexing for array look-up */
 };
 
 struct t_model {
-    char* name = nullptr;             /* name of this logic model */
-    t_model_ports* inputs = nullptr;  /* linked list of input/clock ports */
-    t_model_ports* outputs = nullptr; /* linked list of output ports */
+    char* name = nullptr;                   // name of this logic model
+    std::vector<t_model_ports*> ports;      // input/clock ports + output ports
+
+    typedef std::vector<t_model_ports*>::const_iterator port_iter_t;
+    vtr::Range<port_iter_t> get_input_ports() const {
+        return vtr::make_range(ports.begin(), ports.begin()+n_input_ports_);
+    }
+
+    vtr::Range<port_iter_t> get_output_ports() const {
+        return vtr::make_range(ports.begin()+n_input_ports_, ports.end());
+    }
+
+    t_model_ports* get_input_port_at(int idx) const {
+        return *(get_input_ports().begin()+idx);
+    }
+
+    t_model_ports* get_output_port_at(int idx) const {
+        return *(get_output_ports().begin()+idx);
+    }
+
+    void add_port(t_model_ports* port, PORTS dir) {
+        if (dir == IN_PORT) {
+            n_input_ports_++;
+            // insert at the beginning to store ports in the same order as linked list used in legacy code
+            ports.insert(ports.begin(), port);
+        } else {
+            VTR_ASSERT(dir == OUT_PORT);
+            n_output_ports_++;
+            ports.insert(ports.begin()+n_input_ports_, port);
+        }
+    }
+
     void* instances = nullptr;
     int used = 0;
     vtr::t_linked_vptr* pb_types = nullptr; /* Physical block types that implement this model */
@@ -52,6 +81,11 @@ struct t_model {
     bool never_prune = false; /* Don't remove from the netlist even if a block of this type has no output ports used and, therefore, unconnected to the rest of the netlist */
 
     int index = -1;
+
+  private:
+    int n_input_ports_ = 0;
+    int n_output_ports_ = 0;
+
 };
 
 #endif

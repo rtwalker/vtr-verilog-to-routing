@@ -8,22 +8,18 @@
 bool check_model_clocks(t_model* model, const char* file, uint32_t line) {
     //Collect the ports identified as clocks
     std::set<std::string> clocks;
-    for (t_model_ports* ports : {model->inputs, model->outputs}) {
-        for (t_model_ports* port = ports; port != nullptr; port = port->next) {
-            if (port->is_clock) {
-                clocks.insert(port->name);
-            }
+    for (t_model_ports* port : model->ports) {
+        if (port->is_clock) {
+            clocks.insert(port->name);
         }
     }
 
     //Check that any clock references on the ports are to identified clock ports
-    for (t_model_ports* ports : {model->inputs, model->outputs}) {
-        for (t_model_ports* port = ports; port != nullptr; port = port->next) {
-            if (!port->clock.empty() && !clocks.count(port->clock)) {
-                archfpga_throw(file, line,
-                               "No matching clock port '%s' on model '%s', required for port '%s'",
-                               port->clock.c_str(), model->name, port->name);
-            }
+    for (t_model_ports* port : model->ports) {
+        if (!port->clock.empty() && !clocks.count(port->clock)) {
+            archfpga_throw(file, line,
+                           "No matching clock port '%s' on model '%s', required for port '%s'",
+                           port->clock.c_str(), model->name, port->name);
         }
     }
     return true;
@@ -31,8 +27,8 @@ bool check_model_clocks(t_model* model, const char* file, uint32_t line) {
 
 bool check_model_combinational_sinks(const t_model* model, const char* file, uint32_t line) {
     //Outputs should have no combinational sinks
-    for (t_model_ports* port = model->outputs; port != nullptr; port = port->next) {
-        if (port->combinational_sink_ports.size() != 0) {
+    for (const auto& port : model->get_output_ports()) {
+        if (!port->combinational_sink_ports.empty()) {
             archfpga_throw(file, line,
                            "Model '%s' output port '%s' can not have combinational sink ports",
                            model->name, port->name);
@@ -41,11 +37,11 @@ bool check_model_combinational_sinks(const t_model* model, const char* file, uin
 
     //Record the output ports
     std::map<std::string, t_model_ports*> output_ports;
-    for (t_model_ports* port = model->outputs; port != nullptr; port = port->next) {
+    for (t_model_ports* port : model->get_output_ports()) {
         output_ports.insert({port->name, port});
     }
 
-    for (t_model_ports* port = model->inputs; port != nullptr; port = port->next) {
+    for (t_model_ports* port : model->get_input_ports()) {
         for (const std::string& sink_port_name : port->combinational_sink_ports) {
             //Check that the input port combinational sinks are all outputs
             if (!output_ports.count(sink_port_name)) {
@@ -72,7 +68,7 @@ bool check_model_combinational_sinks(const t_model* model, const char* file, uin
 void warn_model_missing_timing(const t_model* model, const char* file, uint32_t line) {
     //Check whether there are missing edges and warn the user
     std::set<std::string> comb_connected_outputs;
-    for (t_model_ports* port = model->inputs; port != nullptr; port = port->next) {
+    for (t_model_ports* port : model->get_input_ports()) {
         if (port->clock.empty()                       //Not sequential
             && port->combinational_sink_ports.empty() //Doesn't drive any combinational outputs
             && !port->is_clock                        //Not an input clock
@@ -84,7 +80,7 @@ void warn_model_missing_timing(const t_model* model, const char* file, uint32_t 
         comb_connected_outputs.insert(port->combinational_sink_ports.begin(), port->combinational_sink_ports.end());
     }
 
-    for (t_model_ports* port = model->outputs; port != nullptr; port = port->next) {
+    for (t_model_ports* port : model->get_output_ports()) {
         if (port->clock.empty()                          //Not sequential
             && !comb_connected_outputs.count(port->name) //Not combinationally drivven
             && !port->is_clock                           //Not an output clock
@@ -185,12 +181,10 @@ bool check_leaf_pb_model_timing_consistency(const t_pb_type* pb_type, const t_ar
 
                         //Find the model port
                         const t_model_ports* model_port = nullptr;
-                        for (const t_model_ports* ports : {model->inputs, model->outputs}) {
-                            for (const t_model_ports* port = ports; port != nullptr; port = port->next) {
-                                if (port->name == annot_port.port_name()) {
-                                    model_port = port;
-                                    break;
-                                }
+                        for (const t_model_ports* port : model->ports) {
+                            if (port->name == annot_port.port_name()) {
+                                model_port = port;
+                                break;
                             }
                             if (model_port != nullptr) break;
                         }
@@ -227,7 +221,7 @@ bool check_leaf_pb_model_timing_consistency(const t_pb_type* pb_type, const t_ar
 
                         //Find the input model port
                         const t_model_ports* model_port = nullptr;
-                        for (const t_model_ports* port = model->inputs; port != nullptr; port = port->next) {
+                        for (const t_model_ports* port : model->get_input_ports()) {
                             if (port->name == annot_in.port_name()) {
                                 model_port = port;
                                 break;
@@ -260,73 +254,51 @@ bool check_leaf_pb_model_timing_consistency(const t_pb_type* pb_type, const t_ar
 
     //Build a list of combinationally connected sinks
     std::set<std::string> comb_connected_outputs;
-    for (t_model_ports* model_ports : {model->inputs, model->outputs}) {
-        for (t_model_ports* model_port = model_ports; model_port != nullptr; model_port = model_port->next) {
-            comb_connected_outputs.insert(model_port->combinational_sink_ports.begin(), model_port->combinational_sink_ports.end());
-        }
+    for (t_model_ports* model_port : model->ports) {
+        comb_connected_outputs.insert(model_port->combinational_sink_ports.begin(), model_port->combinational_sink_ports.end());
     }
 
     //Check from the model to pb_type's delay annotations
     //
     //  This ensures that the pb_type has annotations for all delays/values
     //  required by the model
-    for (t_model_ports* model_ports : {model->inputs, model->outputs}) {
-        for (t_model_ports* model_port = model_ports; model_port != nullptr; model_port = model_port->next) {
-            //If the model port has no timing specification don't check anything (e.g. architectures with no timing info)
-            if (model_port->clock.empty()
-                && model_port->combinational_sink_ports.empty()
-                && !comb_connected_outputs.count(model_port->name)) {
-                continue;
-            }
+    for (t_model_ports* model_port : model->ports) {
+        //If the model port has no timing specification don't check anything (e.g. architectures with no timing info)
+        if (model_port->clock.empty()
+            && model_port->combinational_sink_ports.empty()
+            && !comb_connected_outputs.count(model_port->name)) {
+            continue;
+        }
 
-            if (!model_port->clock.empty()) {
-                //Sequential port
+        if (!model_port->clock.empty()) {
+            //Sequential port
 
-                if (model_port->dir == IN_PORT) {
-                    //Sequential inputs must have a T_setup or T_hold
-                    if (find_sequential_annotation(pb_type, model_port, E_ANNOT_PIN_TO_PIN_DELAY_TSETUP) == nullptr
-                        && find_sequential_annotation(pb_type, model_port, E_ANNOT_PIN_TO_PIN_DELAY_THOLD) == nullptr) {
-                        std::stringstream msg;
-                        msg << "<pb_type> '" << pb_type->name << "' timing-annotation/<model> mismatch on";
-                        msg << " port '" << model_port->name << "' of model '" << model->name << "',";
-                        msg << " port is a sequential input but has neither T_setup nor T_hold specified";
+            if (model_port->dir == IN_PORT) {
+                //Sequential inputs must have a T_setup or T_hold
+                if (find_sequential_annotation(pb_type, model_port, E_ANNOT_PIN_TO_PIN_DELAY_TSETUP) == nullptr
+                    && find_sequential_annotation(pb_type, model_port, E_ANNOT_PIN_TO_PIN_DELAY_THOLD) == nullptr) {
+                    std::stringstream msg;
+                    msg << "<pb_type> '" << pb_type->name << "' timing-annotation/<model> mismatch on";
+                    msg << " port '" << model_port->name << "' of model '" << model->name << "',";
+                    msg << " port is a sequential input but has neither T_setup nor T_hold specified";
 
-                        if (is_library_model(model)) {
-                            //Only warn if timing info is missing from a library model (e.g. .names/.latch on a non-timing architecture)
-                            VTR_LOGF_WARN(get_arch_file_name(), -1, "%s\n", msg.str().c_str());
-                        } else {
-                            archfpga_throw(get_arch_file_name(), -1, msg.str().c_str());
-                        }
+                    if (is_library_model(model)) {
+                        //Only warn if timing info is missing from a library model (e.g. .names/.latch on a non-timing architecture)
+                        VTR_LOGF_WARN(get_arch_file_name(), -1, "%s\n", msg.str().c_str());
+                    } else {
+                        archfpga_throw(get_arch_file_name(), -1, msg.str().c_str());
                     }
+                }
 
-                    if (!model_port->combinational_sink_ports.empty()) {
-                        //Sequential input with internal combinational connectsion it must also have T_clock_to_Q
-                        if (find_sequential_annotation(pb_type, model_port, E_ANNOT_PIN_TO_PIN_DELAY_CLOCK_TO_Q_MAX) == nullptr
-                            && find_sequential_annotation(pb_type, model_port, E_ANNOT_PIN_TO_PIN_DELAY_CLOCK_TO_Q_MIN) == nullptr) {
-                            std::stringstream msg;
-                            msg << "<pb_type> '" << pb_type->name << "' timing-annotation/<model> mismatch on";
-                            msg << " port '" << model_port->name << "' of model '" << model->name << "',";
-                            msg << " port is a sequential input with internal combinational connects but has neither";
-                            msg << " min nor max T_clock_to_Q specified";
-
-                            if (is_library_model(model)) {
-                                //Only warn if timing info is missing from a library model (e.g. .names/.latch on a non-timing architecture)
-                                VTR_LOGF_WARN(get_arch_file_name(), -1, "%s\n", msg.str().c_str());
-                            } else {
-                                archfpga_throw(get_arch_file_name(), -1, msg.str().c_str());
-                            }
-                        }
-                    }
-
-                } else {
-                    VTR_ASSERT(model_port->dir == OUT_PORT);
-                    //Sequential outputs must have T_clock_to_Q
+                if (!model_port->combinational_sink_ports.empty()) {
+                    //Sequential input with internal combinational connectsion it must also have T_clock_to_Q
                     if (find_sequential_annotation(pb_type, model_port, E_ANNOT_PIN_TO_PIN_DELAY_CLOCK_TO_Q_MAX) == nullptr
                         && find_sequential_annotation(pb_type, model_port, E_ANNOT_PIN_TO_PIN_DELAY_CLOCK_TO_Q_MIN) == nullptr) {
                         std::stringstream msg;
                         msg << "<pb_type> '" << pb_type->name << "' timing-annotation/<model> mismatch on";
                         msg << " port '" << model_port->name << "' of model '" << model->name << "',";
-                        msg << " port is a sequential output but has neither min nor max T_clock_to_Q specified";
+                        msg << " port is a sequential input with internal combinational connects but has neither";
+                        msg << " min nor max T_clock_to_Q specified";
 
                         if (is_library_model(model)) {
                             //Only warn if timing info is missing from a library model (e.g. .names/.latch on a non-timing architecture)
@@ -335,44 +307,62 @@ bool check_leaf_pb_model_timing_consistency(const t_pb_type* pb_type, const t_ar
                             archfpga_throw(get_arch_file_name(), -1, msg.str().c_str());
                         }
                     }
+                }
 
-                    if (comb_connected_outputs.count(model_port->name)) {
-                        //Sequential output with internal combinational connectison must have T_setup/T_hold
-                        if (find_sequential_annotation(pb_type, model_port, E_ANNOT_PIN_TO_PIN_DELAY_TSETUP) == nullptr
-                            && find_sequential_annotation(pb_type, model_port, E_ANNOT_PIN_TO_PIN_DELAY_THOLD) == nullptr) {
-                            std::stringstream msg;
-                            msg << "<pb_type> '" << pb_type->name << "' timing-annotation/<model> mismatch on";
-                            msg << " port '" << model_port->name << "' of model '" << model->name << "',";
-                            msg << " port is a sequential output with internal combinational connections but has";
-                            msg << " neither T_setup nor T_hold specified";
+            } else {
+                VTR_ASSERT(model_port->dir == OUT_PORT);
+                //Sequential outputs must have T_clock_to_Q
+                if (find_sequential_annotation(pb_type, model_port, E_ANNOT_PIN_TO_PIN_DELAY_CLOCK_TO_Q_MAX) == nullptr
+                    && find_sequential_annotation(pb_type, model_port, E_ANNOT_PIN_TO_PIN_DELAY_CLOCK_TO_Q_MIN) == nullptr) {
+                    std::stringstream msg;
+                    msg << "<pb_type> '" << pb_type->name << "' timing-annotation/<model> mismatch on";
+                    msg << " port '" << model_port->name << "' of model '" << model->name << "',";
+                    msg << " port is a sequential output but has neither min nor max T_clock_to_Q specified";
 
-                            if (is_library_model(model)) {
-                                //Only warn if timing info is missing from a library model (e.g. .names/.latch on a non-timing architecture)
-                                VTR_LOGF_WARN(get_arch_file_name(), -1, "%s\n", msg.str().c_str());
-                            } else {
-                                archfpga_throw(get_arch_file_name(), -1, msg.str().c_str());
-                            }
+                    if (is_library_model(model)) {
+                        //Only warn if timing info is missing from a library model (e.g. .names/.latch on a non-timing architecture)
+                        VTR_LOGF_WARN(get_arch_file_name(), -1, "%s\n", msg.str().c_str());
+                    } else {
+                        archfpga_throw(get_arch_file_name(), -1, msg.str().c_str());
+                    }
+                }
+
+                if (comb_connected_outputs.count(model_port->name)) {
+                    //Sequential output with internal combinational connectison must have T_setup/T_hold
+                    if (find_sequential_annotation(pb_type, model_port, E_ANNOT_PIN_TO_PIN_DELAY_TSETUP) == nullptr
+                        && find_sequential_annotation(pb_type, model_port, E_ANNOT_PIN_TO_PIN_DELAY_THOLD) == nullptr) {
+                        std::stringstream msg;
+                        msg << "<pb_type> '" << pb_type->name << "' timing-annotation/<model> mismatch on";
+                        msg << " port '" << model_port->name << "' of model '" << model->name << "',";
+                        msg << " port is a sequential output with internal combinational connections but has";
+                        msg << " neither T_setup nor T_hold specified";
+
+                        if (is_library_model(model)) {
+                            //Only warn if timing info is missing from a library model (e.g. .names/.latch on a non-timing architecture)
+                            VTR_LOGF_WARN(get_arch_file_name(), -1, "%s\n", msg.str().c_str());
+                        } else {
+                            archfpga_throw(get_arch_file_name(), -1, msg.str().c_str());
                         }
                     }
                 }
             }
+        }
 
-            //Check that combinationally connected inputs/outputs have combinational delays between them
-            if (model_port->dir == IN_PORT) {
-                for (const auto& sink_port : model_port->combinational_sink_ports) {
-                    if (find_combinational_annotation(pb_type, model_port->name, sink_port) == nullptr) {
-                        std::stringstream msg;
-                        msg << "<pb_type> '" << pb_type->name << "' timing-annotation/<model> mismatch on";
-                        msg << " port '" << model_port->name << "' of model '" << model->name << "',";
-                        msg << " input port '" << model_port->name << "' has combinational connections to";
-                        msg << " port '" << sink_port.c_str() << "'; specified in model, but no combinational delays found on pb_type";
+        //Check that combinationally connected inputs/outputs have combinational delays between them
+        if (model_port->dir == IN_PORT) {
+            for (const auto& sink_port : model_port->combinational_sink_ports) {
+                if (find_combinational_annotation(pb_type, model_port->name, sink_port) == nullptr) {
+                    std::stringstream msg;
+                    msg << "<pb_type> '" << pb_type->name << "' timing-annotation/<model> mismatch on";
+                    msg << " port '" << model_port->name << "' of model '" << model->name << "',";
+                    msg << " input port '" << model_port->name << "' has combinational connections to";
+                    msg << " port '" << sink_port.c_str() << "'; specified in model, but no combinational delays found on pb_type";
 
-                        if (is_library_model(model)) {
-                            //Only warn if timing info is missing from a library model (e.g. .names/.latch on a non-timing architecture)
-                            VTR_LOGF_WARN(get_arch_file_name(), -1, "%s\n", msg.str().c_str());
-                        } else {
-                            archfpga_throw(get_arch_file_name(), -1, msg.str().c_str());
-                        }
+                    if (is_library_model(model)) {
+                        //Only warn if timing info is missing from a library model (e.g. .names/.latch on a non-timing architecture)
+                        VTR_LOGF_WARN(get_arch_file_name(), -1, "%s\n", msg.str().c_str());
+                    } else {
+                        archfpga_throw(get_arch_file_name(), -1, msg.str().c_str());
                     }
                 }
             }
@@ -391,23 +381,21 @@ void check_models(t_arch* arch) {
 
         int clk_count, input_count, output_count;
         clk_count = input_count = output_count = 0;
-        for (auto ports : {model->inputs, model->outputs}) {
-            for (auto port = ports; port != nullptr; port = port->next) {
-                int index;
-                switch (port->dir) {
-                    case IN_PORT:
-                        index = port->is_clock ? clk_count++ : input_count++;
-                        break;
-                    case OUT_PORT:
-                        index = output_count++;
-                        break;
-                    default:
-                        archfpga_throw(get_arch_file_name(), 0,
-                                       "Port %s of model %s, has an unrecognized type %s\n", port->name, model->name);
-                }
-
-                port->index = index;
+        for (auto port : model->ports) {
+            int index;
+            switch (port->dir) {
+                case IN_PORT:
+                    index = port->is_clock ? clk_count++ : input_count++;
+                    break;
+                case OUT_PORT:
+                    index = output_count++;
+                    break;
+                default:
+                    archfpga_throw(get_arch_file_name(), 0,
+                                   "Port %s of model %s, has an unrecognized type %s\n", port->name, model->name);
             }
+
+            port->index = index;
         }
     }
 }

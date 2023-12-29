@@ -96,18 +96,12 @@ void DeclareModel_bb(FILE* Echo, const t_model* model) {
     fprintf(Echo, "module %s(\n", model->name);
 
     // input/output ports
-    t_model_ports* input_port = model->inputs;
-    while (input_port) {
+    for (auto input_port : model->get_input_ports()) {
         fprintf(Echo, "\tinput\t[%d:0]\t%s,\n", input_port->size - 1, input_port->name);
-        // move forward until the end of input ports' list
-        input_port = input_port->next;
     }
 
-    t_model_ports* output_port = model->outputs;
-    while (output_port) {
+    for (auto output_port : model->get_output_ports()) {
         fprintf(Echo, "\toutput\t[%d:0]\t%s,\n", output_port->size - 1, output_port->name);
-        // move forward until the end of output ports' list
-        output_port = output_port->next;
     }
     fprintf(Echo, ");\n");
 

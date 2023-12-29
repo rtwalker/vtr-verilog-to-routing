@@ -177,22 +177,13 @@ void free_arch(t_arch* arch) {
         }
 
         vtr::free(arch->model_library[0].name);
-        vtr::free(arch->model_library[0].outputs->name);
-        delete[] arch->model_library[0].outputs;
-        vtr::free(arch->model_library[1].inputs->name);
-        delete[] arch->model_library[1].inputs;
+        free_arch_model_ports(arch->model_library[0].ports);
         vtr::free(arch->model_library[1].name);
+        free_arch_model_ports(arch->model_library[1].ports);
         vtr::free(arch->model_library[2].name);
-        vtr::free(arch->model_library[2].inputs[0].name);
-        vtr::free(arch->model_library[2].inputs[1].name);
-        delete[] arch->model_library[2].inputs;
-        vtr::free(arch->model_library[2].outputs->name);
-        delete[] arch->model_library[2].outputs;
+        free_arch_model_ports(arch->model_library[2].ports);
         vtr::free(arch->model_library[3].name);
-        vtr::free(arch->model_library[3].inputs->name);
-        delete[] arch->model_library[3].inputs;
-        vtr::free(arch->model_library[3].outputs->name);
-        delete[] arch->model_library[3].outputs;
+        free_arch_model_ports(arch->model_library[3].ports);
         delete[] arch->model_library;
     }
 
@@ -217,8 +208,7 @@ t_model* free_arch_model(t_model* model) {
 
     t_model* next_model = model->next;
 
-    free_arch_model_ports(model->inputs);
-    free_arch_model_ports(model->outputs);
+    free_arch_model_ports(model->ports);
 
     vtr::t_linked_vptr* vptr = model->pb_types;
     while (vptr) {
@@ -236,23 +226,11 @@ t_model* free_arch_model(t_model* model) {
 }
 
 //Frees all the model portss in a linked list
-void free_arch_model_ports(t_model_ports* model_ports) {
-    t_model_ports* model_port = model_ports;
-    while (model_port) {
-        model_port = free_arch_model_port(model_port);
+void free_arch_model_ports(std::vector<t_model_ports*>& model_ports) {
+    for (t_model_ports* port : model_ports) {
+        vtr::free(port->name);
+        delete port;
     }
-}
-
-//Frees the specified model_port, and returns the next model_port (if any) in the linked list
-t_model_ports* free_arch_model_port(t_model_ports* model_port) {
-    if (!model_port) return nullptr;
-
-    t_model_ports* next_port = model_port->next;
-
-    vtr::free(model_port->name);
-    delete model_port;
-
-    return next_port;
 }
 
 void free_type_descriptors(std::vector<t_physical_tile_type>& type_descriptors) {
@@ -1002,93 +980,92 @@ void CreateModelLibrary(t_arch* arch) {
     //INPAD
     model_library[0].name = vtr::strdup(MODEL_INPUT);
     model_library[0].index = 0;
-    model_library[0].inputs = nullptr;
     model_library[0].instances = nullptr;
     model_library[0].next = &model_library[1];
-    model_library[0].outputs = new t_model_ports[1];
-    model_library[0].outputs->dir = OUT_PORT;
-    model_library[0].outputs->name = vtr::strdup("inpad");
-    model_library[0].outputs->next = nullptr;
-    model_library[0].outputs->size = 1;
-    model_library[0].outputs->min_size = 1;
-    model_library[0].outputs->index = 0;
-    model_library[0].outputs->is_clock = false;
+    auto* model_port_ptr = new t_model_ports;
+    model_port_ptr->dir = OUT_PORT;
+    model_port_ptr->name = vtr::strdup("inpad");
+    model_port_ptr->size = 1;
+    model_port_ptr->min_size = 1;
+    model_port_ptr->index = 0;
+    model_port_ptr->is_clock = false;
+    model_library[0].add_port(model_port_ptr, OUT_PORT);
 
     //OUTPAD
     model_library[1].name = vtr::strdup(MODEL_OUTPUT);
     model_library[1].index = 1;
-    model_library[1].inputs = new t_model_ports[1];
-    model_library[1].inputs->dir = IN_PORT;
-    model_library[1].inputs->name = vtr::strdup("outpad");
-    model_library[1].inputs->next = nullptr;
-    model_library[1].inputs->size = 1;
-    model_library[1].inputs->min_size = 1;
-    model_library[1].inputs->index = 0;
-    model_library[1].inputs->is_clock = false;
+    model_port_ptr = new t_model_ports;
+    model_port_ptr->dir = IN_PORT;
+    model_port_ptr->name = vtr::strdup("outpad");
+    model_port_ptr->size = 1;
+    model_port_ptr->min_size = 1;
+    model_port_ptr->index = 0;
+    model_port_ptr->is_clock = false;
+    model_library[1].add_port(model_port_ptr, IN_PORT);
     model_library[1].instances = nullptr;
     model_library[1].next = &model_library[2];
-    model_library[1].outputs = nullptr;
 
     //LATCH
     model_library[2].name = vtr::strdup(MODEL_LATCH);
     model_library[2].index = 2;
-    model_library[2].inputs = new t_model_ports[2];
 
-    model_library[2].inputs[0].dir = IN_PORT;
-    model_library[2].inputs[0].name = vtr::strdup("D");
-    model_library[2].inputs[0].next = &model_library[2].inputs[1];
-    model_library[2].inputs[0].size = 1;
-    model_library[2].inputs[0].min_size = 1;
-    model_library[2].inputs[0].index = 0;
-    model_library[2].inputs[0].is_clock = false;
-    model_library[2].inputs[0].clock = "clk";
+    model_port_ptr = new t_model_ports;
+    model_port_ptr->dir = IN_PORT;
+    model_port_ptr->name = vtr::strdup("clk");
+    model_port_ptr->size = 1;
+    model_port_ptr->min_size = 1;
+    model_port_ptr->index = 0;
+    model_port_ptr->is_clock = true;
+    model_library[2].add_port(model_port_ptr, IN_PORT);
 
-    model_library[2].inputs[1].dir = IN_PORT;
-    model_library[2].inputs[1].name = vtr::strdup("clk");
-    model_library[2].inputs[1].next = nullptr;
-    model_library[2].inputs[1].size = 1;
-    model_library[2].inputs[1].min_size = 1;
-    model_library[2].inputs[1].index = 0;
-    model_library[2].inputs[1].is_clock = true;
+    model_port_ptr = new t_model_ports;
+    model_port_ptr->dir = IN_PORT;
+    model_port_ptr->name = vtr::strdup("D");
+    model_port_ptr->size = 1;
+    model_port_ptr->min_size = 1;
+    model_port_ptr->index = 0;
+    model_port_ptr->is_clock = false;
+    model_port_ptr->clock = "clk";
+    model_library[2].add_port(model_port_ptr, IN_PORT);
 
     model_library[2].instances = nullptr;
     model_library[2].next = &model_library[3];
 
-    model_library[2].outputs = new t_model_ports[1];
-    model_library[2].outputs[0].dir = OUT_PORT;
-    model_library[2].outputs[0].name = vtr::strdup("Q");
-    model_library[2].outputs[0].next = nullptr;
-    model_library[2].outputs[0].size = 1;
-    model_library[2].outputs[0].min_size = 1;
-    model_library[2].outputs[0].index = 0;
-    model_library[2].outputs[0].is_clock = false;
-    model_library[2].outputs[0].clock = "clk";
+    model_port_ptr = new t_model_ports;
+    model_port_ptr->dir = OUT_PORT;
+    model_port_ptr->name = vtr::strdup("Q");
+    model_port_ptr->size = 1;
+    model_port_ptr->min_size = 1;
+    model_port_ptr->index = 0;
+    model_port_ptr->is_clock = false;
+    model_port_ptr->clock = "clk";
+    model_library[2].add_port(model_port_ptr, OUT_PORT);
 
     //NAMES
     model_library[3].name = vtr::strdup(MODEL_NAMES);
     model_library[3].index = 3;
 
-    model_library[3].inputs = new t_model_ports[1];
-    model_library[3].inputs[0].dir = IN_PORT;
-    model_library[3].inputs[0].name = vtr::strdup("in");
-    model_library[3].inputs[0].next = nullptr;
-    model_library[3].inputs[0].size = 1;
-    model_library[3].inputs[0].min_size = 1;
-    model_library[3].inputs[0].index = 0;
-    model_library[3].inputs[0].is_clock = false;
-    model_library[3].inputs[0].combinational_sink_ports = {"out"};
+    model_port_ptr = new t_model_ports;
+    model_port_ptr->dir = IN_PORT;
+    model_port_ptr->name = vtr::strdup("in");
+    model_port_ptr->size = 1;
+    model_port_ptr->min_size = 1;
+    model_port_ptr->index = 0;
+    model_port_ptr->is_clock = false;
+    model_port_ptr->combinational_sink_ports = {"out"};
+    model_library[3].add_port(model_port_ptr, IN_PORT);
 
     model_library[3].instances = nullptr;
     model_library[3].next = nullptr;
 
-    model_library[3].outputs = new t_model_ports[1];
-    model_library[3].outputs[0].dir = OUT_PORT;
-    model_library[3].outputs[0].name = vtr::strdup("out");
-    model_library[3].outputs[0].next = nullptr;
-    model_library[3].outputs[0].size = 1;
-    model_library[3].outputs[0].min_size = 1;
-    model_library[3].outputs[0].index = 0;
-    model_library[3].outputs[0].is_clock = false;
+    model_port_ptr = new t_model_ports;
+    model_port_ptr->dir = OUT_PORT;
+    model_port_ptr->name = vtr::strdup("out");
+    model_port_ptr->size = 1;
+    model_port_ptr->min_size = 1;
+    model_port_ptr->index = 0;
+    model_port_ptr->is_clock = false;
+    model_library[3].add_port(model_port_ptr, OUT_PORT);
 
     arch->model_library = model_library;
 }
@@ -1106,7 +1083,6 @@ void SyncModelsPbTypes_rec(t_arch* arch,
                            t_pb_type* pb_type) {
     int i, j, p;
     t_model *model_match_prim, *cur_model;
-    t_model_ports* model_port;
     vtr::t_linked_vptr* old;
     char* blif_model_name = nullptr;
 
@@ -1157,8 +1133,7 @@ void SyncModelsPbTypes_rec(t_arch* arch,
         for (p = 0; p < pb_type->num_ports; p++) {
             found = false;
             /* TODO: Parse error checking - check if INPUT matches INPUT and OUTPUT matches OUTPUT (not yet done) */
-            model_port = model_match_prim->inputs;
-            while (model_port && !found) {
+            for (auto model_port : model_match_prim->get_input_ports()) {
                 if (strcmp(model_port->name, pb_type->ports[p].name) == 0) {
                     if (model_port->size < pb_type->ports[p].num_pins) {
                         model_port->size = pb_type->ports[p].num_pins;
@@ -1180,10 +1155,14 @@ void SyncModelsPbTypes_rec(t_arch* arch,
                     }
                     found = true;
                 }
-                model_port = model_port->next;
+                if (found) {
+                    break;
+                }
             }
-            model_port = model_match_prim->outputs;
-            while (model_port && !found) {
+            for(auto model_port : model_match_prim->get_output_ports()) {
+                if (found) {
+                    break;
+                }
                 if (strcmp(model_port->name, pb_type->ports[p].name) == 0) {
                     if (model_port->size < pb_type->ports[p].num_pins) {
                         model_port->size = pb_type->ports[p].num_pins;
@@ -1201,9 +1180,8 @@ void SyncModelsPbTypes_rec(t_arch* arch,
                     }
                     found = true;
                 }
-                model_port = model_port->next;
             }
-            if (found != true) {
+            if (!found) {
                 archfpga_throw(get_arch_file_name(), 0,
                                "No matching model port for port %s in pb_type %s\n",
                                pb_type->ports[p].name, pb_type->name);

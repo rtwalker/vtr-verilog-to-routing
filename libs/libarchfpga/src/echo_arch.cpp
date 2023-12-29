@@ -28,7 +28,6 @@ void EchoArch(const char* EchoFile,
     int i, j;
     FILE* Echo;
     t_model* cur_model;
-    t_model_ports* model_port;
     t_linked_vptr* cur_vptr;
 
     Echo = vtr::fopen(EchoFile, "w");
@@ -49,19 +48,15 @@ void EchoArch(const char* EchoFile,
         }
         while (cur_model) {
             fprintf(Echo, "Model: \"%s\"\n", cur_model->name);
-            model_port = cur_model->inputs;
-            while (model_port) {
+            for (auto model_port : cur_model->get_input_ports()) {
                 fprintf(Echo, "\tInput Ports: \"%s\" \"%d\" min_size=\"%d\"\n",
                         model_port->name, model_port->size,
                         model_port->min_size);
-                model_port = model_port->next;
             }
-            model_port = cur_model->outputs;
-            while (model_port) {
+            for (auto model_port : cur_model->get_output_ports()) {
                 fprintf(Echo, "\tOutput Ports: \"%s\" \"%d\" min_size=\"%d\"\n",
                         model_port->name, model_port->size,
                         model_port->min_size);
-                model_port = model_port->next;
             }
             cur_vptr = cur_model->pb_types;
             i = 0;
