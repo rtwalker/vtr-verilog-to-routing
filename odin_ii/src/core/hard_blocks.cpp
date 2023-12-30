@@ -47,11 +47,17 @@ void register_hb_port_size(t_model_ports* hb_ports, int size) {
      */
 }
 
-t_model_ports* get_model_port(t_model_ports* ports, const char* name) {
-    while (ports && strcmp(ports->name, name))
-        ports = ports->next;
+t_model_ports* get_model_port(vtr::Range<t_model::port_iter_t> ports, const char* name) {
+    t_model_ports* found_port = nullptr;
 
-    return ports;
+    for (auto port : ports) {
+        if (strcmp(port->name, name) == 0) {
+            found_port = port;
+            break;
+        }
+    }
+
+    return found_port;
 }
 
 void cache_hard_block_names() {
@@ -74,35 +80,35 @@ void register_hard_blocks() {
     if (single_port_rams) {
         if (configuration.split_memory_width) {
             register_hb_port_size(
-                get_model_port(single_port_rams->inputs, "data"), 1);
+                get_model_port(single_port_rams->get_input_ports(), "data"), 1);
 
             register_hb_port_size(
-                get_model_port(single_port_rams->outputs, "out"), 1);
+                get_model_port(single_port_rams->get_output_ports(), "out"), 1);
         }
 
         register_hb_port_size(
-            get_model_port(single_port_rams->inputs, "addr"), get_sp_ram_split_depth());
+            get_model_port(single_port_rams->get_input_ports(), "addr"), get_sp_ram_split_depth());
     }
 
     if (dual_port_rams) {
         if (configuration.split_memory_width) {
             register_hb_port_size(
-                get_model_port(dual_port_rams->inputs, "data1"), 1);
+                get_model_port(dual_port_rams->get_input_ports(), "data1"), 1);
             register_hb_port_size(
-                get_model_port(dual_port_rams->inputs, "data2"), 1);
+                get_model_port(dual_port_rams->get_input_ports(), "data2"), 1);
 
             register_hb_port_size(
-                get_model_port(dual_port_rams->outputs, "out1"), 1);
+                get_model_port(dual_port_rams->get_output_ports(), "out1"), 1);
             register_hb_port_size(
-                get_model_port(dual_port_rams->outputs, "out2"), 1);
+                get_model_port(dual_port_rams->get_output_ports(), "out2"), 1);
         }
 
         int split_depth = get_dp_ram_split_depth();
 
         register_hb_port_size(
-            get_model_port(dual_port_rams->inputs, "addr1"), split_depth);
+            get_model_port(dual_port_rams->get_input_ports(), "addr1"), split_depth);
         register_hb_port_size(
-            get_model_port(dual_port_rams->inputs, "addr2"), split_depth);
+            get_model_port(dual_port_rams->get_input_ports(), "addr2"), split_depth);
     }
 }
 
@@ -207,7 +213,6 @@ void define_hard_block(nnode_t* node, FILE* out) {
 }
 
 void output_hard_blocks(FILE* out) {
-    t_model_ports* hb_ports;
     t_model* hard_blocks;
     char buffer[MAX_BUF];
     int count;
@@ -226,37 +231,33 @@ void output_hard_blocks(FILE* out) {
 
             fprintf(out, "\n.model %s\n", hard_blocks->name);
             count = fprintf(out, ".inputs");
-            hb_ports = hard_blocks->inputs;
-            while (hb_ports != NULL) {
-                for (i = 0; i < hb_ports->size; i++) {
-                    if (hb_ports->size == 1)
-                        count = count + odin_sprintf(buffer, " %s", hb_ports->name);
+            for (auto hb_port : hard_blocks->get_input_ports()) {
+                for (i = 0; i < hb_port->size; i++) {
+                    if (hb_port->size == 1)
+                        count = count + odin_sprintf(buffer, " %s", hb_port->name);
                     else
-                        count = count + odin_sprintf(buffer, " %s[%d]", hb_ports->name, i);
+                        count = count + odin_sprintf(buffer, " %s[%d]", hb_port->name, i);
 
                     if (count >= 78)
                         count = fprintf(out, " \\\n%s", buffer) - 3;
                     else
                         fprintf(out, "%s", buffer);
                 }
-                hb_ports = hb_ports->next;
             }
 
             count = fprintf(out, "\n.outputs") - 1;
-            hb_ports = hard_blocks->outputs;
-            while (hb_ports != NULL) {
-                for (i = 0; i < hb_ports->size; i++) {
-                    if (hb_ports->size == 1)
-                        count = count + odin_sprintf(buffer, " %s", hb_ports->name);
+            for (auto hb_port : hard_blocks->get_output_ports()) {
+                for (i = 0; i < hb_port->size; i++) {
+                    if (hb_port->size == 1)
+                        count = count + odin_sprintf(buffer, " %s", hb_port->name);
                     else
-                        count = count + odin_sprintf(buffer, " %s[%d]", hb_ports->name, i);
+                        count = count + odin_sprintf(buffer, " %s[%d]", hb_port->name, i);
 
                     if (count >= 78)
                         count = fprintf(out, " \\\n%s", buffer) - 3;
                     else
                         fprintf(out, "%s", buffer);
                 }
-                hb_ports = hb_ports->next;
             }
 
             fprintf(out, "\n.blackbox\n.end\n\n");
@@ -288,8 +289,6 @@ void instantiate_hard_block(nnode_t* node, short mark, netlist_t* /*netlist*/) {
 }
 
 int hard_block_port_size(t_model* hb, char* pname) {
-    t_model_ports* tmp;
-
     if (hb == NULL)
         return 0;
 
@@ -301,43 +300,26 @@ int hard_block_port_size(t_model* hb, char* pname) {
         return -1;
     }
 
-    tmp = hb->inputs;
-    while (tmp != NULL)
-        if ((tmp->name != NULL) && (strcmp(tmp->name, pname) == 0))
+    for (auto tmp : hb->ports) {
+        if ((tmp->name != NULL) && (strcmp(tmp->name, pname) == 0)) {
             return tmp->size;
-        else
-            tmp = tmp->next;
-
-    tmp = hb->outputs;
-    while (tmp != NULL)
-        if ((tmp->name != NULL) && (strcmp(tmp->name, pname) == 0))
-            return tmp->size;
-        else
-            tmp = tmp->next;
+        }
+    }
 
     return 0;
 }
 
 enum PORTS
 hard_block_port_direction(t_model* hb, char* pname) {
-    t_model_ports* tmp;
-
     if (hb == NULL)
         return ERR_PORT;
 
-    tmp = hb->inputs;
-    while (tmp != NULL)
-        if ((tmp->name != NULL) && (strcmp(tmp->name, pname) == 0))
+    for (auto tmp : hb->ports) {
+        if ((tmp->name != NULL) && (strcmp(tmp->name, pname) == 0)) {
             return tmp->dir;
-        else
-            tmp = tmp->next;
+        }
+    }
 
-    tmp = hb->outputs;
-    while (tmp != NULL)
-        if ((tmp->name != NULL) && (strcmp(tmp->name, pname) == 0))
-            return tmp->dir;
-        else
-            tmp = tmp->next;
 
     return ERR_PORT;
 }

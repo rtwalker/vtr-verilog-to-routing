@@ -31,6 +31,7 @@
 #include <iostream>
 #include <vector>
 #include <stack>
+#include <optional>
 
 #include "odin_types.h"
 #include "adders.h"
@@ -2376,21 +2377,8 @@ ast_node_t* look_for_matching_hard_block(ast_node_t* node, char* hard_block_name
         /* check for soft logic RAM */
         return look_for_matching_soft_logic(node, hard_block_name);
     } else {
-        t_model_ports* hb_input_ports = hb_model->inputs;
-        t_model_ports* hb_output_ports = hb_model->outputs;
-
-        int num_hb_inputs = 0;
-        int num_hb_outputs = 0;
-
-        while (hb_input_ports != NULL) {
-            num_hb_inputs++;
-            hb_input_ports = hb_input_ports->next;
-        }
-
-        while (hb_output_ports != NULL) {
-            num_hb_outputs++;
-            hb_output_ports = hb_output_ports->next;
-        }
+        int num_hb_inputs = hb_model->get_input_ports().size();
+        int num_hb_outputs = hb_model->get_output_ports().size();
 
         ast_node_t* connect_list = node->children[0]->children[0];
 
@@ -2406,23 +2394,16 @@ ast_node_t* look_for_matching_hard_block(ast_node_t* node, char* hard_block_name
             for (int i = 0; i < connect_list->num_children && is_hb; i++) {
                 oassert(connect_list->children[i]->identifier_node);
                 char* id = connect_list->children[i]->identifier_node->types.identifier;
-                hb_input_ports = hb_model->inputs;
-                hb_output_ports = hb_model->outputs;
+                t_model_ports* found_port = nullptr;
 
-                while ((hb_input_ports != NULL) && (strcmp(hb_input_ports->name, id) != 0)) {
-                    hb_input_ports = hb_input_ports->next;
-                }
-
-                if (hb_input_ports == NULL) {
-                    while ((hb_output_ports != NULL) && (strcmp(hb_output_ports->name, id) != 0)) {
-                        hb_output_ports = hb_output_ports->next;
+                for (auto hb_port : hb_model->ports) {
+                    if (strcmp(hb_port->name, id) == 0) {
+                        found_port = hb_port;
+                        break;
                     }
-                } else {
-                    /* matching input was found; move on to the next port connection */
-                    continue;
                 }
 
-                if (hb_output_ports == NULL) {
+                if (found_port == NULL) {
                     /* name doesn't match up with any of the defined ports; this is not a hard block */
                     is_hb = false;
                 } else {
@@ -2438,12 +2419,9 @@ ast_node_t* look_for_matching_hard_block(ast_node_t* node, char* hard_block_name
             warning_message(AST, connect_list->loc,
                             "Attempting to convert this instance to a hard block (%s) -	unnamed port connections will be matched according to hard block specification and may produce unexpected results\n", hard_block_name);
 
-            t_model_ports *hb_ports_1 = NULL, *hb_ports_2 = NULL;
+            std::optional<vtr::Range<t_model::port_iter_t>> hb_ports_1, hb_ports_2;
             bool is_input, is_output;
             int num_ports;
-
-            hb_input_ports = hb_model->inputs;
-            hb_output_ports = hb_model->outputs;
 
             /* decide whether to look for inputs or outputs based on what there are less of */
             if (num_hb_inputs <= num_hb_outputs) {
@@ -2471,22 +2449,22 @@ ast_node_t* look_for_matching_hard_block(ast_node_t* node, char* hard_block_name
                     && var_declare->types.variable.is_input == is_input) {
                     /* found a match! check if it's an input or output */
                     if (is_input) {
-                        hb_ports_1 = hb_model->inputs;
-                        hb_ports_2 = hb_model->outputs;
+                        hb_ports_1 = hb_model->get_input_ports();
+                        hb_ports_2 = hb_model->get_output_ports();
                     } else {
-                        hb_ports_1 = hb_model->outputs;
-                        hb_ports_2 = hb_model->inputs;
+                        hb_ports_1 = hb_model->get_output_ports();
+                        hb_ports_2 = hb_model->get_input_ports();
                     }
                     break;
                 } else if (var_declare->types.variable.is_output != is_output
                            && var_declare->types.variable.is_input != is_input) {
                     /* found the opposite of what we were looking for */
                     if (is_input) {
-                        hb_ports_1 = hb_model->outputs;
-                        hb_ports_2 = hb_model->inputs;
+                        hb_ports_1 = hb_model->get_output_ports();
+                        hb_ports_2 = hb_model->get_input_ports();
                     } else {
-                        hb_ports_1 = hb_model->inputs;
-                        hb_ports_2 = hb_model->outputs;
+                        hb_ports_1 = hb_model->get_input_ports();
+                        hb_ports_2 = hb_model->get_output_ports();
                     }
                     break;
                 }
@@ -2504,22 +2482,22 @@ ast_node_t* look_for_matching_hard_block(ast_node_t* node, char* hard_block_name
                         && var_declare->types.variable.is_input == is_input) {
                         /* found a match! since we're at the other end, inputs/outputs should be reversed */
                         if (is_input) {
-                            hb_ports_1 = hb_model->outputs;
-                            hb_ports_2 = hb_model->inputs;
+                            hb_ports_1 = hb_model->get_output_ports();
+                            hb_ports_2 = hb_model->get_input_ports();
                         } else {
-                            hb_ports_1 = hb_model->inputs;
-                            hb_ports_2 = hb_model->outputs;
+                            hb_ports_1 = hb_model->get_input_ports();
+                            hb_ports_2 = hb_model->get_output_ports();
                         }
                         break;
                     } else if (var_declare->types.variable.is_output != is_output
                                && var_declare->types.variable.is_input != is_input) {
                         /* found the opposite of what we were looking for */
                         if (is_input) {
-                            hb_ports_1 = hb_model->inputs;
-                            hb_ports_2 = hb_model->outputs;
+                            hb_ports_1 = hb_model->get_input_ports();
+                            hb_ports_2 = hb_model->get_output_ports();
                         } else {
-                            hb_ports_1 = hb_model->outputs;
-                            hb_ports_2 = hb_model->inputs;
+                            hb_ports_1 = hb_model->get_output_ports();
+                            hb_ports_2 = hb_model->get_input_ports();
                         }
                         break;
                     }
@@ -2529,23 +2507,18 @@ ast_node_t* look_for_matching_hard_block(ast_node_t* node, char* hard_block_name
             /* if a match hasn't been found, then there is no way to tell what should be done first;
              * we will default to inputs first, then outputs after (this is an arbitrary decision) */
             if (!(hb_ports_1 && hb_ports_2)) {
-                hb_ports_1 = hb_model->inputs;
-                hb_ports_2 = hb_model->outputs;
+                hb_ports_1 = hb_model->get_input_ports();
+                hb_ports_2 = hb_model->get_output_ports();
             }
 
             /* attach new port identifiers for later reference when building the hard block */
             i = 0;
-            while (hb_ports_1) {
-                oassert(connect_list->children[i] && !connect_list->children[i]->identifier_node);
-                connect_list->children[i]->identifier_node = newSymbolNode(vtr::strdup(hb_ports_1->name), connect_list->loc);
-                hb_ports_1 = hb_ports_1->next;
-                i++;
-            }
-            while (hb_ports_2) {
-                oassert(connect_list->children[i] && !connect_list->children[i]->identifier_node);
-                connect_list->children[i]->identifier_node = newSymbolNode(vtr::strdup(hb_ports_2->name), connect_list->loc);
-                hb_ports_2 = hb_ports_2->next;
-                i++;
+            for (const auto& hb_ports : {hb_ports_1, hb_ports_2}) {
+                for (auto hb_port : hb_ports.value()) {
+                    oassert(connect_list->children[i] && !connect_list->children[i]->identifier_node);
+                    connect_list->children[i]->identifier_node = newSymbolNode(vtr::strdup(hb_port->name), connect_list->loc);
+                    i++;
+                }
             }
         }
     }

@@ -4505,33 +4505,28 @@ signal_list_t* create_dual_port_ram_block(ast_node_t* block, char* instance_name
     hb_model->used = 1;
 
     /* Need to do a sanity check to make sure ports line up */
-    t_model_ports* hb_ports;
     long i;
     for (i = 0; i < block_list->num_children; i++) {
         block_connect = block_list->children[i];
         char* ip_name = block_connect->identifier_node->types.identifier;
-        hb_ports = hb_model->inputs;
+        t_model_ports* found_port = get_model_port(hb_model->get_input_ports(), ip_name);
 
-        while (hb_ports && strcmp(hb_ports->name, ip_name))
-            hb_ports = hb_ports->next;
-
-        if (!hb_ports) {
-            hb_ports = hb_model->outputs;
-            while ((hb_ports != NULL) && (strcmp(hb_ports->name, ip_name) != 0))
-                hb_ports = hb_ports->next;
+        if (!found_port) {
+            found_port = get_model_port(hb_model->get_output_ports(), ip_name);
         }
 
-        if (!hb_ports)
-            error_message(NETLIST, block->loc, "Non-existant port %s in hard block %s\n", ip_name, block->identifier_node->types.identifier);
+        if (!found_port)
+            error_message(NETLIST, block->loc, "Non-existent port %s in hard block %s\n", ip_name, block->identifier_node->types.identifier);
 
         /* Link the signal to the port definition */
-        block_connect->children[0]->hb_port = (void*)hb_ports;
+        block_connect->children[0]->hb_port = (void*)found_port;
     }
 
     signal_list_t** in_list = (signal_list_t**)vtr::malloc(sizeof(signal_list_t*) * block_list->num_children);
     int out_port_size1 = 0;
     int out_port_size2 = 0;
     int current_idx = 0;
+    t_model_ports* hb_ports;
     for (i = 0; i < block_list->num_children; i++) {
         int port_size;
         ast_node_t* block_port_connect;
@@ -4678,47 +4673,33 @@ signal_list_t* create_single_port_ram_block(ast_node_t* block, char* instance_na
     ast_node_t* block_connect;
     char* ip_name = NULL;
     long i;
-    t_model_ports* hb_ports;
     for (i = 0; i < block_list->num_children; i++) {
         block_connect = block_list->children[i];
         ip_name = block_connect->identifier_node->types.identifier;
-        hb_ports = hb_model->inputs;
+        t_model_ports* found_port = get_model_port(hb_model->get_input_ports(), ip_name);
 
-        while (hb_ports && strcmp(hb_ports->name, ip_name))
-            hb_ports = hb_ports->next;
-
-        if (!hb_ports) {
-            hb_ports = hb_model->outputs;
-            while (hb_ports && strcmp(hb_ports->name, ip_name))
-                hb_ports = hb_ports->next;
+        if (!found_port) {
+            found_port = get_model_port(hb_model->get_output_ports(), ip_name);
         }
 
-        if (!hb_ports)
-            error_message(NETLIST, block->loc, "Non-existant port %s in hard block %s\n", ip_name, block->identifier_node->types.identifier);
+
+        if (!found_port)
+            error_message(NETLIST, block->loc, "Non-existent port %s in hard block %s\n", ip_name, block->identifier_node->types.identifier);
 
         /* Link the signal to the port definition */
-        block_connect->children[0]->hb_port = (void*)hb_ports;
+        block_connect->children[0]->hb_port = (void*)found_port;
     }
 
     /* Need to make sure ALL ports are defined */
-    hb_ports = hb_model->inputs;
-    i = 0;
-    while (hb_ports) {
-        i++;
-        hb_ports = hb_ports->next;
-    }
-
-    hb_ports = hb_model->outputs;
-    while (hb_ports) {
-        i++;
-        hb_ports = hb_ports->next;
-    }
+    i = hb_model->get_input_ports().size();
+    i += hb_model->get_output_ports().size();
 
     if (i != block_list->num_children)
         error_message(NETLIST, block->loc, "Not all ports defined in hard block %s\n", ip_name);
 
     signal_list_t** in_list = (signal_list_t**)vtr::malloc(sizeof(signal_list_t*) * block_list->num_children);
     int out_port_size = 0;
+    t_model_ports* hb_ports;
     for (i = 0; i < block_list->num_children; i++) {
         int port_size;
         ast_node_t* block_port_connect;
@@ -5184,21 +5165,18 @@ signal_list_t* create_hard_block(ast_node_t* block, char* instance_name_prefix, 
     for (i = 0; i < block_list->num_children; i++) {
         block_connect = block_list->children[i];
         ip_name = block_connect->identifier_node->types.identifier;
-        hb_ports = hb_model->inputs;
-        while ((hb_ports != NULL) && (strcmp(hb_ports->name, ip_name) != 0))
-            hb_ports = hb_ports->next;
-        if (hb_ports == NULL) {
-            hb_ports = hb_model->outputs;
-            while ((hb_ports != NULL) && (strcmp(hb_ports->name, ip_name) != 0))
-                hb_ports = hb_ports->next;
+        t_model_ports* found_port = get_model_port(hb_model->get_input_ports(), ip_name);
+
+        if (!found_port) {
+            found_port = get_model_port(hb_model->get_output_ports(), ip_name);
         }
 
-        if (hb_ports == NULL) {
-            error_message(NETLIST, block->loc, "Non-existant port %s in hard block %s\n", ip_name, block->identifier_node->types.identifier);
+        if (found_port == NULL) {
+            error_message(NETLIST, block->loc, "Non-existent port %s in hard block %s\n", ip_name, block->identifier_node->types.identifier);
         }
 
         /* Link the signal to the port definition */
-        block_connect->children[0]->hb_port = (void*)hb_ports;
+        block_connect->children[0]->hb_port = (void*)found_port;
     }
 
     in_list = (signal_list_t**)vtr::malloc(sizeof(signal_list_t*) * block_list->num_children);
@@ -5302,7 +5280,7 @@ signal_list_t* create_hard_block(ast_node_t* block, char* instance_name_prefix, 
         }
     }
 
-    hb_ports = hb_model->outputs;
+    auto output_port = hb_model->get_output_port_at(0);
 
     /* IF a multiplier - need to process the output pins now */
     /* Size of the output is estimated to be size of the inputs added */
@@ -5318,20 +5296,20 @@ signal_list_t* create_hard_block(ast_node_t* block, char* instance_name_prefix, 
             char* pin_name;
             long sc_spot;
 
-            if (hb_ports->size > 1)
-                pin_name = make_full_ref_name(block_node->name, NULL, NULL, hb_ports->name, j);
+            if (output_port->size > 1)
+                pin_name = make_full_ref_name(block_node->name, NULL, NULL, output_port->name, j);
             else
-                pin_name = make_full_ref_name(block_node->name, NULL, NULL, hb_ports->name, -1);
+                pin_name = make_full_ref_name(block_node->name, NULL, NULL, output_port->name, -1);
 
             new_pin1 = allocate_npin();
-            if (hb_ports->size > 1)
-                new_pin1->mapping = make_signal_name(hb_ports->name, j);
+            if (output_port->size > 1)
+                new_pin1->mapping = make_signal_name(output_port->name, j);
             else
-                new_pin1->mapping = make_signal_name(hb_ports->name, -1);
+                new_pin1->mapping = make_signal_name(output_port->name, -1);
 
             new_pin2 = allocate_npin();
             new_net = allocate_nnet();
-            new_net->name = hb_ports->name;
+            new_net->name = output_port->name;
             /* hook the output pin into the node */
             add_output_pin_to_node(block_node, new_pin1, current_out_idx + j);
             /* hook up new pin 1 into the new net */
@@ -5369,19 +5347,20 @@ signal_list_t* create_hard_block(ast_node_t* block, char* instance_name_prefix, 
             /*For sumout - make the implicit output list and hook up the outputs */
             if (j < adder_size) {
                 if (adder_size > 1) {
-                    pin_name = make_full_ref_name(block_node->name, NULL, NULL, hb_ports->name, j);
-                    new_pin1->mapping = make_signal_name(hb_ports->name, j);
+                    pin_name = make_full_ref_name(block_node->name, NULL, NULL, output_port->name, j);
+                    new_pin1->mapping = make_signal_name(output_port->name, j);
                 } else {
-                    pin_name = make_full_ref_name(block_node->name, NULL, NULL, hb_ports->name, -1);
-                    new_pin1->mapping = make_signal_name(hb_ports->name, -1);
+                    pin_name = make_full_ref_name(block_node->name, NULL, NULL, output_port->name, -1);
+                    new_pin1->mapping = make_signal_name(output_port->name, -1);
                 }
-                new_net->name = hb_ports->name;
+                new_net->name = output_port->name;
             }
             /*For cout - make the implicit output list and hook up the outputs */
             else {
-                pin_name = make_full_ref_name(block_node->name, NULL, NULL, hb_ports->next->name, -1);
-                new_pin1->mapping = make_signal_name(hb_ports->next->name, -1);
-                new_net->name = hb_ports->next->name;
+                auto output_port1 = hb_model->get_output_port_at(0);
+                pin_name = make_full_ref_name(block_node->name, NULL, NULL, output_port1->name, -1);
+                new_pin1->mapping = make_signal_name(output_port1->name, -1);
+                new_net->name = output_port1->name;
             }
 
             /* hook the output pin into the node */

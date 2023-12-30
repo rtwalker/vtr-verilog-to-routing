@@ -249,7 +249,7 @@ void instantiate_simple_soft_multiplier(nnode_t* node, short mark, netlist_t* ne
  *-------------------------------------------------------------------------*/
 void init_mult_distribution() {
     oassert(hard_multipliers != NULL);
-    int len = (1 + hard_multipliers->inputs->size) * (1 + hard_multipliers->inputs->next->size);
+    int len = (1 + hard_multipliers->get_input_port_at(0)->size) * (1 + hard_multipliers->get_input_port_at(1)->size);
     mults = (int*)vtr::calloc(len, sizeof(int));
 }
 
@@ -265,7 +265,7 @@ void record_mult_distribution(nnode_t* node) {
     a = node->input_port_sizes[0];
     b = node->input_port_sizes[1];
 
-    mults[a * hard_multipliers->inputs->size + b] += 1;
+    mults[a * hard_multipliers->get_input_port_at(0)->size + b] += 1;
     return;
 }
 
@@ -280,11 +280,11 @@ void report_mult_distribution() {
 
     printf("\nHard Multiplier Distribution\n");
     printf("============================\n");
-    for (long i = 0; i <= hard_multipliers->inputs->size; i++) {
-        for (long j = 1; j <= hard_multipliers->inputs->next->size; j++) {
-            if (mults[i * hard_multipliers->inputs->size + j] != 0) {
-                num_total += mults[i * hard_multipliers->inputs->size + j];
-                printf("%ld X %ld => %d\n", i, j, mults[i * hard_multipliers->inputs->size + j]);
+    for (long i = 0; i <= hard_multipliers->get_input_port_at(0)->size; i++) {
+        for (long j = 1; j <= hard_multipliers->get_input_port_at(1)->size; j++) {
+            if (mults[i * hard_multipliers->get_input_port_at(0)->size + j] != 0) {
+                num_total += mults[i * hard_multipliers->get_input_port_at(0)->size + j];
+                printf("%ld X %ld => %d\n", i, j, mults[i * hard_multipliers->get_input_port_at(0)->size + j]);
             }
         }
     }
@@ -401,7 +401,6 @@ void add_the_blackbox_for_mults(FILE* out) {
     int count;
     int hard_mult_inputs;
     t_multiplier* muls;
-    t_model_ports* ports;
     char buffer[MAX_BUF];
     char *pa, *pb, *po;
 
@@ -410,11 +409,9 @@ void add_the_blackbox_for_mults(FILE* out) {
         return;
 
     /* Get the names of the ports for the multiplier */
-    ports = hard_multipliers->inputs;
-    pb = ports->name;
-    ports = ports->next;
-    pa = ports->name;
-    po = hard_multipliers->outputs->name;
+    pb = hard_multipliers->get_input_port_at(0)->name;
+    pa = hard_multipliers->get_input_port_at(1)->name;
+    po = hard_multipliers->get_output_port_at(0)->name;
 
     /* find the multiplier devices in the tech library */
     muls = (t_multiplier*)(hard_multipliers->instances);
@@ -507,9 +504,9 @@ void define_mult_function(nnode_t* node, FILE* out) {
             npin_t* driver_pin = net->driver_pins[0];
 
             if (!driver_pin->name)
-                j = odin_sprintf(buffer, " %s[%ld]=%s", hard_multipliers->inputs->next->name, i, driver_pin->node->name);
+                j = odin_sprintf(buffer, " %s[%ld]=%s", hard_multipliers->get_input_port_at(1)->name, i, driver_pin->node->name);
             else
-                j = odin_sprintf(buffer, " %s[%ld]=%s", hard_multipliers->inputs->next->name, i, driver_pin->name);
+                j = odin_sprintf(buffer, " %s[%ld]=%s", hard_multipliers->get_input_port_at(1)->name, i, driver_pin->name);
         } else {
             int input_index = flip ? i - node->input_port_sizes[1] : i;
             nnet_t* net = node->input_pins[input_index]->net;
@@ -521,9 +518,9 @@ void define_mult_function(nnode_t* node, FILE* out) {
                              : i - node->input_port_sizes[0];
 
             if (!driver_pin->name)
-                j = odin_sprintf(buffer, " %s[%ld]=%s", hard_multipliers->inputs->name, index, driver_pin->node->name);
+                j = odin_sprintf(buffer, " %s[%ld]=%s", hard_multipliers->get_input_port_at(0)->name, index, driver_pin->node->name);
             else
-                j = odin_sprintf(buffer, " %s[%ld]=%s", hard_multipliers->inputs->name, index, driver_pin->name);
+                j = odin_sprintf(buffer, " %s[%ld]=%s", hard_multipliers->get_input_port_at(0)->name, index, driver_pin->name);
         }
 
         if (count + j > 79) {
@@ -534,7 +531,7 @@ void define_mult_function(nnode_t* node, FILE* out) {
     }
 
     for (i = 0; i < node->num_output_pins; i++) {
-        j = odin_sprintf(buffer, " %s[%ld]=%s", hard_multipliers->outputs->name, i, node->output_pins[i]->name);
+        j = odin_sprintf(buffer, " %s[%ld]=%s", hard_multipliers->get_output_port_at(0)->name, i, node->output_pins[i]->name);
         if (count + j > 79) {
             fprintf(out, "\\\n");
             count = 0;
@@ -918,15 +915,15 @@ void pad_multiplier(nnode_t* node, netlist_t* netlist) {
     record_mult_distribution(node);
 
     /* Calculate the BEST fit hard multiplier to use */
-    ina = hard_multipliers->inputs->size;
-    inb = hard_multipliers->inputs->next->size;
+    ina = hard_multipliers->get_input_port_at(0)->size;
+    inb = hard_multipliers->get_input_port_at(1)->size;
     if (ina < inb) {
-        ina = hard_multipliers->inputs->next->size;
-        inb = hard_multipliers->inputs->size;
+        ina = hard_multipliers->get_input_port_at(1)->size;
+        inb = hard_multipliers->get_input_port_at(0)->size;
     }
     diffa = ina - sizea;
     diffb = inb - sizeb;
-    diffout = hard_multipliers->outputs->size - sizeout;
+    diffout = hard_multipliers->get_output_port_at(0)->size - sizeout;
 
     if (configuration.split_hard_multiplier == 1) {
         t_linked_vptr* plist = hard_multipliers->pb_types;
@@ -1012,8 +1009,8 @@ void iterate_multipliers(netlist_t* netlist) {
     if (hard_multipliers == NULL)
         return;
 
-    sizea = hard_multipliers->inputs->size;
-    sizeb = hard_multipliers->inputs->next->size;
+    sizea = hard_multipliers->get_input_port_at(0)->size;
+    sizeb = hard_multipliers->get_input_port_at(1)->size;
     if (sizea < sizeb) {
         swap = sizea;
         sizea = sizeb;

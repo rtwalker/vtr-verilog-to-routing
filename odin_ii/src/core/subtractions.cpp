@@ -606,9 +606,9 @@ void iterate_adders_for_sub(netlist_t* netlist) {
         return;
     else {
         //In hard block adder, the summand and addend are same size.
-        sizecin = hard_adders->inputs->size;
-        sizeb = hard_adders->inputs->next->size;
-        sizea = hard_adders->inputs->next->size;
+        sizecin = hard_adders->get_input_port_at(0)->size;
+        sizeb = hard_adders->get_input_port_at(1)->size;
+        sizea = hard_adders->get_input_port_at(1)->size;
 
         oassert(sizecin == 1);
 

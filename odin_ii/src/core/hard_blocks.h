@@ -38,6 +38,6 @@ void output_hard_blocks(FILE* out);
 int hard_block_port_size(t_model* hb, char* pname);
 enum PORTS hard_block_port_direction(t_model* hb, char* pname);
 void instantiate_hard_block(nnode_t* node, short mark, netlist_t* netlist);
-t_model_ports* get_model_port(t_model_ports* ports, const char* name);
+t_model_ports* get_model_port(vtr::Range<t_model::port_iter_t> ports, const char* name);
 
 #endif
