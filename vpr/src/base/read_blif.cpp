@@ -446,7 +446,7 @@ struct BlifAllocCallback : public blifparse::Callback {
     }
 
   private:
-    const t_model* find_model(std::string name) {
+    const t_model* find_model(const std::string& name) {
         const t_model* arch_model = nullptr;
         for (const t_model* arch_models : {user_arch_models_, library_arch_models_}) {
             arch_model = arch_models;
@@ -469,7 +469,7 @@ struct BlifAllocCallback : public blifparse::Callback {
         return arch_model;
     }
 
-    const t_model_ports* find_model_port(const t_model* blk_model, std::string port_name) {
+    const t_model_ports* find_model_port(const t_model* blk_model, const std::string& port_name) {
         //We need to handle both single, and multi-bit port names
         //
         //By convention multi-bit port names have the bit index stored in square brackets
@@ -581,7 +581,7 @@ struct BlifAllocCallback : public blifparse::Callback {
             } else {
                 VTR_ASSERT(blif_model.block_type(blk_id) == AtomBlockType::OUTPAD);
 
-                auto raw_output_name = blif_model.block_name(blk_id);
+                const auto& raw_output_name = blif_model.block_name(blk_id);
 
                 std::string output_name = vtr::replace_first(raw_output_name, OUTPAD_NAME_PREFIX, "");
 
@@ -667,7 +667,7 @@ vtr::LogicValue to_vtr_logic_value(blifparse::LogicValue val) {
             new_val = vtr::LogicValue::UNKOWN;
             break;
         default:
-            VTR_ASSERT_OPT_MSG(false, "Unkown logic value");
+            VTR_ASSERT_OPT_MSG(false, "Unknown logic value");
     }
     return new_val;
 }
