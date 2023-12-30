@@ -5357,7 +5357,7 @@ signal_list_t* create_hard_block(ast_node_t* block, char* instance_name_prefix, 
             }
             /*For cout - make the implicit output list and hook up the outputs */
             else {
-                auto output_port1 = hb_model->get_output_port_at(0);
+                auto output_port1 = hb_model->get_output_port_at(1);
                 pin_name = make_full_ref_name(block_node->name, NULL, NULL, output_port1->name, -1);
                 new_pin1->mapping = make_signal_name(output_port1->name, -1);
                 new_net->name = output_port1->name;

@@ -349,10 +349,10 @@ void print_netlist_as_blif(FILE* f, const AtomNetlist& netlist) {
 
         fprintf(f, "\n");
 
-        for (auto param : netlist.block_params(blk_id)) {
+        for (const auto& param : netlist.block_params(blk_id)) {
             fprintf(f, ".param %s %s\n", param.first.c_str(), param.second.c_str());
         }
-        for (auto attr : netlist.block_attrs(blk_id)) {
+        for (const auto& attr : netlist.block_attrs(blk_id)) {
             fprintf(f, ".attr %s %s\n", attr.first.c_str(), attr.second.c_str());
         }
 
@@ -649,7 +649,7 @@ std::vector<AtomPortId> find_combinationally_connected_input_ports(const AtomNet
 
     VTR_ASSERT(netlist.port_type(output_port) == PortType::OUTPUT);
 
-    std::string out_port_name = netlist.port_name(output_port);
+    const std::string& out_port_name = netlist.port_name(output_port);
 
     AtomBlockId blk = netlist.port_block(output_port);
 
@@ -671,7 +671,7 @@ std::vector<AtomPortId> find_combinationally_connected_clock_ports(const AtomNet
 
     VTR_ASSERT(netlist.port_type(output_port) == PortType::OUTPUT);
 
-    std::string out_port_name = netlist.port_name(output_port);
+    const std::string& out_port_name = netlist.port_name(output_port);
 
     AtomBlockId blk = netlist.port_block(output_port);
 

@@ -157,7 +157,7 @@ class AtomNetlist : public Netlist<AtomBlockId, AtomPortId, AtomPinId, AtomNetId
      *
      *   @param net_name   name of the net from which the aliases are extracted
      */
-    std::unordered_set<std::string> net_aliases(const std::string net_name) const;
+    std::unordered_set<std::string> net_aliases(const std::string& net_name) const;
 
   public: //Public Mutators
     /*
@@ -173,7 +173,7 @@ class AtomNetlist : public Netlist<AtomBlockId, AtomPortId, AtomPinId, AtomNetId
      *                        The truth_table is optional and only relevant for LUTs (where it describes the logic function)
      *                        and Flip-Flops/latches (where it consists of a single entry defining the initial state).
      */
-    AtomBlockId create_block(const std::string name, const t_model* model, const TruthTable truth_table = TruthTable());
+    AtomBlockId create_block(const std::string& name, const t_model* model, const TruthTable& truth_table = TruthTable());
 
     /**
      * @brief Create or return an existing port in the netlist
