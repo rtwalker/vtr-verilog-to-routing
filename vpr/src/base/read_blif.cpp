@@ -85,10 +85,10 @@ struct BlifAllocCallback : public blifparse::Callback {
 
         VTR_ASSERT_MSG(blk_model->get_input_ports().empty(), "Inpad model has an input port");
         VTR_ASSERT_MSG(blk_model->get_output_ports().size() > 0, "Inpad model has no output port");
-        VTR_ASSERT_MSG((*blk_model->get_output_ports().begin())->size == 1, "Inpad model has non-single-bit output port");
+        VTR_ASSERT_MSG(blk_model->get_output_port_at(0)->size == 1, "Inpad model has non-single-bit output port");
         VTR_ASSERT_MSG(blk_model->get_output_ports().size() == 1, "Inpad model has multiple output ports");
 
-        const auto output_port = *blk_model->get_output_ports().begin();
+        const auto output_port = blk_model->get_output_port_at(0);
 
         std::string pin_name = output_port->name;
         for (const auto& input : input_names) {
@@ -105,10 +105,10 @@ struct BlifAllocCallback : public blifparse::Callback {
 
         VTR_ASSERT_MSG(blk_model->get_output_ports().empty(), "Outpad model has an output port");
         VTR_ASSERT_MSG(blk_model->get_input_ports().size() > 0, "Outpad model has no input port");
-        VTR_ASSERT_MSG((*blk_model->get_input_ports().begin())->size == 1, "Outpad model has non-single-bit input port");
+        VTR_ASSERT_MSG(blk_model->get_input_port_at(0)->size == 1, "Outpad model has non-single-bit input port");
         VTR_ASSERT_MSG(blk_model->get_input_ports().size() == 1, "Outpad model has multiple input ports");
 
-        const auto input_port = *blk_model->get_input_ports().begin();
+        const auto input_port = blk_model->get_input_port_at(0);
 
         std::string pin_name = input_port->name;
         for (const auto& output : output_names) {
@@ -129,7 +129,7 @@ struct BlifAllocCallback : public blifparse::Callback {
 
         VTR_ASSERT_MSG(!blk_model->get_input_ports().empty(), ".names model has no input port");
         VTR_ASSERT_MSG(blk_model->get_input_ports().size() == 1, ".names model has multiple input ports");
-        const auto input_port = *blk_model->get_input_ports().begin();
+        const auto input_port = blk_model->get_input_port_at(0);
         if (static_cast<int>(nets.size()) - 1 > input_port->size) {
             vpr_throw(VPR_ERROR_BLIF_F, filename_.c_str(), lineno_, "BLIF .names input size (%zu) greater than .names model input size (%d)",
                       nets.size() - 1, input_port->size);
@@ -137,7 +137,7 @@ struct BlifAllocCallback : public blifparse::Callback {
 
         VTR_ASSERT_MSG(!blk_model->get_output_ports().empty(), ".names has no output port");
         VTR_ASSERT_MSG(blk_model->get_output_ports().size() == 1, ".names model has multiple output ports");
-        const auto output_port = *blk_model->get_output_ports().begin();
+        const auto output_port = blk_model->get_output_port_at(0);
         VTR_ASSERT_MSG(output_port->size == 1, ".names model has non-single-bit output");
 
         //Convert the single-output cover to a netlist truth table
@@ -213,9 +213,9 @@ struct BlifAllocCallback : public blifparse::Callback {
         VTR_ASSERT_MSG(blk_model->get_input_ports().size() == 2, ".latch model does not have exactly two input ports");
         VTR_ASSERT_MSG(blk_model->get_output_ports().size() == 1, ".latch model does not have exactly one output port");
 
-        const t_model_ports* d_model_port = *blk_model->get_input_ports().begin();
-        const t_model_ports* clk_model_port = *(blk_model->get_input_ports().begin()+1);
-        const t_model_ports* q_model_port = *blk_model->get_output_ports().begin();
+        const t_model_ports* d_model_port = blk_model->get_input_port_at(0);
+        const t_model_ports* clk_model_port = blk_model->get_input_port_at(1);
+        const t_model_ports* q_model_port = blk_model->get_output_port_at(0);
 
         VTR_ASSERT(d_model_port->name == std::string("D"));
         VTR_ASSERT(clk_model_port->name == std::string("clk"));
