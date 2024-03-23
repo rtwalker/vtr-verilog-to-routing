@@ -3,6 +3,7 @@
 /** @file Parallel and net-decomposing case for NetlistRouter. Works like
  * \see ParallelNetlistRouter, but tries to "decompose" nets and assign them to
  * the next level of the partition tree where possible. */
+#include "globals.h"
 #include "netlist_routers.h"
 
 #include <tbb/task_group.h>
@@ -37,7 +38,8 @@ class DecompNetlistRouter : public NetlistRouter {
         const RoutingPredictor& routing_predictor,
         const vtr::vector<ParentNetId, std::vector<std::unordered_map<RRNodeId, int>>>& choking_spots,
         bool is_flat)
-        : _routers_th(_make_router(router_lookahead, is_flat))
+        : _rr_node_route_infs_th(g_vpr_ctx.routing().rr_node_route_inf) /* Copy existing route_inf to all threads */
+        , _routers_th([router_lookahead, is_flat, this] { return _make_router(router_lookahead, is_flat); }) /* Call make_router on demand */
         , _net_list(net_list)
         , _router_opts(router_opts)
         , _connections_inf(connections_inf)
@@ -80,7 +82,6 @@ class DecompNetlistRouter : public NetlistRouter {
 
     ConnectionRouter<HeapType> _make_router(const RouterLookahead* router_lookahead, bool is_flat) {
         auto& device_ctx = g_vpr_ctx.device();
-        auto& route_ctx = g_vpr_ctx.mutable_routing();
 
         return ConnectionRouter<HeapType>(
             device_ctx.grid,
@@ -89,11 +90,13 @@ class DecompNetlistRouter : public NetlistRouter {
             &device_ctx.rr_graph,
             device_ctx.rr_rc_data,
             device_ctx.rr_graph.rr_switch(),
-            route_ctx.rr_node_route_inf,
+             _rr_node_route_infs_th.local(),
             is_flat);
     }
 
     /* Context fields. Most of them will be forwarded to route_net (see route_net.tpp) */
+    /** Per-thread storage for rr_node_route_infs (we need them to route 1 net with several threads) */
+    tbb::enumerable_thread_specific<vtr::vector<RRNodeId, t_rr_node_route_inf>> _rr_node_route_infs_th;
     /** Per-thread storage for ConnectionRouters. */
     tbb::enumerable_thread_specific<ConnectionRouter<HeapType>> _routers_th;
     const Netlist<>& _net_list;

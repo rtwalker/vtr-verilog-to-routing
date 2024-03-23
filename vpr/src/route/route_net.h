@@ -69,7 +69,8 @@ void setup_net(int itry,
                const Netlist<>& net_list,
                CBRR& connections_inf,
                const t_router_opts& router_opts,
-               float worst_neg_slack);
+               float worst_neg_slack,
+               vtr::vector<RRNodeId, t_rr_node_route_inf>& rr_node_route_inf);
 
 /** Detect if \p net_id should be routed or not */
 bool should_route_net(const Netlist<>& net_list,
@@ -113,7 +114,7 @@ void update_rr_base_costs(int fanout);
 
 /** Traverses down a route tree and updates rr_node_inf for all nodes
  * to reflect that these nodes have already been routed to */
-void update_rr_route_inf_from_tree(const RouteTreeNode& rt_node);
+void update_rr_route_inf_from_tree(const RouteTreeNode& rt_node, vtr::vector<RRNodeId, t_rr_node_route_inf>& rr_node_route_inf);
 
 /** Convert sink mask to a vector of net pin indices
  * (return a vector with indices of set bits) */

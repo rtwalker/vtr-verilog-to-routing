@@ -67,7 +67,7 @@ inline float get_single_rr_cong_base_cost(RRNodeId inode) {
 inline float get_single_rr_cong_acc_cost(RRNodeId inode) {
     auto& route_ctx = g_vpr_ctx.routing();
 
-    return route_ctx.rr_node_route_inf[inode].acc_cost;
+    return route_ctx.rr_node_occ_inf[inode].acc_cost;
 }
 
 /* Returns the present congestion cost of using this rr_node */
@@ -76,7 +76,7 @@ inline float get_single_rr_cong_pres_cost(RRNodeId inode, float pres_fac) {
     const auto& rr_graph = device_ctx.rr_graph;
     auto& route_ctx = g_vpr_ctx.routing();
 
-    int occ = route_ctx.rr_node_route_inf[inode].occ();
+    int occ = route_ctx.rr_node_occ_inf[inode].occ();
     int capacity = rr_graph.node_capacity(inode);
 
     if (occ >= capacity) {
@@ -94,7 +94,7 @@ inline float get_single_rr_cong_cost(RRNodeId inode, float pres_fac) {
     auto& route_ctx = g_vpr_ctx.routing();
 
     float pres_cost;
-    int overuse = route_ctx.rr_node_route_inf[inode].occ() - rr_graph.node_capacity(inode);
+    int overuse = route_ctx.rr_node_occ_inf[inode].occ() - rr_graph.node_capacity(inode);
 
     if (overuse >= 0) {
         pres_cost = (1. + pres_fac * (overuse + 1));
@@ -104,7 +104,7 @@ inline float get_single_rr_cong_cost(RRNodeId inode, float pres_fac) {
 
     auto cost_index = rr_graph.node_cost_index(inode);
 
-    float cost = device_ctx.rr_indexed_data[cost_index].base_cost * route_ctx.rr_node_route_inf[inode].acc_cost * pres_cost;
+    float cost = device_ctx.rr_indexed_data[cost_index].base_cost * route_ctx.rr_node_occ_inf[inode].acc_cost * pres_cost;
 
     VTR_ASSERT_DEBUG_MSG(
         cost == get_single_rr_cong_base_cost(inode) * get_single_rr_cong_acc_cost(inode) * get_single_rr_cong_pres_cost(inode, pres_fac),
@@ -112,12 +112,6 @@ inline float get_single_rr_cong_cost(RRNodeId inode, float pres_fac) {
 
     return cost;
 }
-
-void mark_ends(const Netlist<>& net_list, ParentNetId net_id);
-
-void mark_remaining_ends(ParentNetId net_id);
-
-void add_to_mod_list(RRNodeId inode, std::vector<RRNodeId>& modified_rr_node_inf);
 
 void init_route_structs(const Netlist<>& net_list,
                         int bb_factor,

@@ -35,6 +35,7 @@ inline RouteIterResults SerialNetlistRouter<HeapType>::route_netlist(int itry, f
             worst_neg_slack,
             _routing_predictor,
             _choking_spots[net_id],
+            route_ctx.rr_node_route_inf,
             _is_flat,
             route_ctx.route_bb[net_id]);
 

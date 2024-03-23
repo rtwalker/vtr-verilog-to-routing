@@ -56,9 +56,14 @@ class ConnectionRouter : public ConnectionRouterInterface {
         modified_rr_node_inf_.clear();
     }
 
-    // Reset modified data in rr_node_route_inf based on modified_rr_node_inf.
+    /** Reset modified data in rr_node_route_inf based on modified_rr_node_inf_ */
     void reset_path_costs() final {
-        ::reset_path_costs(modified_rr_node_inf_);
+        for (auto node : modified_rr_node_inf_) {
+            rr_node_route_inf_[node].path_cost = std::numeric_limits<float>::infinity();
+            rr_node_route_inf_[node].backward_path_cost = std::numeric_limits<float>::infinity();
+            rr_node_route_inf_[node].prev_node = RRNodeId::INVALID();
+            rr_node_route_inf_[node].prev_edge = RREdgeId::INVALID();
+        }
     }
 
     /** Finds a path from the route tree rooted at rt_root to sink_node.

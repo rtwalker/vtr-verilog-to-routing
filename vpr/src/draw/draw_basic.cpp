@@ -306,7 +306,7 @@ void draw_congestion(ezgl::renderer* g) {
     float max_congestion_ratio = min_congestion_ratio;
     auto congested_rr_nodes = collect_congested_rr_nodes();
     for (RRNodeId inode : congested_rr_nodes) {
-        short occ = route_ctx.rr_node_route_inf[inode].occ();
+        short occ = route_ctx.rr_node_occ_inf[inode].occ();
         short capacity = rr_graph.node_capacity(inode);
 
         float congestion_ratio = float(occ) / capacity;
@@ -328,10 +328,10 @@ void draw_congestion(ezgl::renderer* g) {
     //Sort the nodes in ascending order of value for drawing, this ensures high
     //valued nodes are not overdrawn by lower value ones (e.g-> when zoomed-out far)
     auto cmp_ascending_acc_cost = [&](RRNodeId lhs_node, RRNodeId rhs_node) {
-        short lhs_occ = route_ctx.rr_node_route_inf[lhs_node].occ();
+        short lhs_occ = route_ctx.rr_node_occ_inf[lhs_node].occ();
         short lhs_capacity = rr_graph.node_capacity(lhs_node);
 
-        short rhs_occ = route_ctx.rr_node_route_inf[rhs_node].occ();
+        short rhs_occ = route_ctx.rr_node_occ_inf[rhs_node].occ();
         short rhs_capacity = rr_graph.node_capacity(rhs_node);
 
         float lhs_cong_ratio = float(lhs_occ) / lhs_capacity;
@@ -369,7 +369,7 @@ void draw_congestion(ezgl::renderer* g) {
         int transparency_factor = get_rr_node_transparency(inode);
         if (!draw_state->draw_layer_display[layer_num].visible)
             continue;
-        short occ = route_ctx.rr_node_route_inf[inode].occ();
+        short occ = route_ctx.rr_node_occ_inf[inode].occ();
         short capacity = rr_graph.node_capacity(inode);
 
         float congestion_ratio = float(occ) / capacity;
@@ -414,7 +414,7 @@ void draw_routing_costs(ezgl::renderer* g) {
     auto& route_ctx = g_vpr_ctx.routing();
     g->set_line_width(0);
 
-    VTR_ASSERT(!route_ctx.rr_node_route_inf.empty());
+    VTR_ASSERT(!route_ctx.rr_node_occ_inf.empty());
 
     float min_cost = std::numeric_limits<float>::infinity();
     float max_cost = -min_cost;

@@ -17,7 +17,8 @@ void setup_net(int itry,
                const Netlist<>& net_list,
                CBRR& connections_inf,
                const t_router_opts& router_opts,
-               float worst_neg_slack) {
+               float worst_neg_slack,
+               vtr::vector<RRNodeId, t_rr_node_route_inf>& rr_node_route_inf) {
     auto& route_ctx = g_vpr_ctx.mutable_routing();
 
     /* "tree" points to this net's spot in the global context here, so re-initializing it etc. changes the global state */
@@ -42,11 +43,6 @@ void setup_net(int itry,
 
         // since all connections will be rerouted for this net, clear all of net's forced reroute flags
         connections_inf.clear_force_reroute_for_net(net_id);
-
-        // when we don't prune the tree, we also don't know the sink node indices
-        // thus we'll use functions that act on pin indices like mark_ends instead
-        // of their versions that act on node indices directly like mark_remaining_ends
-        mark_ends(net_list, net_id);
     } else {
         profiling::net_rebuild_start();
 
@@ -92,11 +88,8 @@ void setup_net(int itry,
         // congestion should've been pruned away
         VTR_ASSERT_SAFE(tree->is_uncongested());
 
-        // mark remaining ends
-        mark_remaining_ends(net_id);
-
         // mark the lookup (rr_node_route_inf) for existing tree elements as NO_PREVIOUS so add_to_path stops when it reaches one of them
-        update_rr_route_inf_from_tree(tree->root());
+        update_rr_route_inf_from_tree(tree->root(), rr_node_route_inf);
     }
 
     // completed constructing the partial route tree and updated all other data structures to match
@@ -120,13 +113,13 @@ void update_rr_base_costs(int fanout) {
     }
 }
 
-void update_rr_route_inf_from_tree(const RouteTreeNode& rt_node) {
+void update_rr_route_inf_from_tree(const RouteTreeNode& rt_node, vtr::vector<RRNodeId, t_rr_node_route_inf>& rr_node_route_inf) {
     auto& route_ctx = g_vpr_ctx.mutable_routing();
 
     for (auto& node : rt_node.all_nodes()) {
         RRNodeId inode = node.inode;
-        route_ctx.rr_node_route_inf[inode].prev_node = RRNodeId::INVALID();
-        route_ctx.rr_node_route_inf[inode].prev_edge = RREdgeId::INVALID();
+        rr_node_route_inf[inode].prev_node = RRNodeId::INVALID();
+        rr_node_route_inf[inode].prev_edge = RREdgeId::INVALID();
 
         // path cost should be unset
         VTR_ASSERT(std::isinf(route_ctx.rr_node_route_inf[inode].path_cost));
@@ -159,7 +152,7 @@ bool should_route_net(const Netlist<>& net_list,
     /* Walk over all rt_nodes in the net */
     for (auto& rt_node : tree.all_nodes()) {
         RRNodeId inode = rt_node.inode;
-        int occ = route_ctx.rr_node_route_inf[inode].occ();
+        int occ = route_ctx.rr_node_occ_inf[inode].occ();
         int capacity = rr_graph.node_capacity(inode);
 
         if (occ > capacity) {

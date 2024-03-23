@@ -139,7 +139,7 @@ static void do_one_route(const Netlist<>& net_list,
         tree.print();
         VTR_LOG("\n");
 
-        VTR_ASSERT_MSG(route_ctx.rr_node_route_inf[tree.root().inode].occ() <= rr_graph.node_capacity(tree.root().inode), "SOURCE should never be congested");
+        VTR_ASSERT_MSG(route_ctx.rr_node_occ_inf[tree.root().inode].occ() <= rr_graph.node_capacity(tree.root().inode), "SOURCE should never be congested");
     } else {
         VTR_LOG("Routing failed");
     }

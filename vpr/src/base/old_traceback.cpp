@@ -130,7 +130,7 @@ void print_traceback(const t_trace* trace) {
             VTR_LOG("*"); //Reached non-configurably
         }
 
-        if (route_ctx.rr_node_route_inf[inode].occ() > rr_graph.node_capacity(inode)) {
+        if (route_ctx.rr_node_occ_inf[inode].occ() > rr_graph.node_capacity(inode)) {
             VTR_LOG(" x"); //Overused
         }
         VTR_LOG("\n");

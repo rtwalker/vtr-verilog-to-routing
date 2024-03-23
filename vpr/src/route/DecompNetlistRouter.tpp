@@ -25,10 +25,13 @@ inline RouteIterResults DecompNetlistRouter<HeapType>::route_netlist(int itry, f
      * Nets in a given level of nodes are guaranteed to not have any overlapping bounding boxes, so they can be routed in parallel. */
     PartitionTree tree(_net_list);
 
+    vtr::Timer t;
+
     /* Put the root node on the task queue, which will add its child nodes when it's finished. Wait until the entire tree gets routed. */
     tbb::task_group g;
     route_partition_tree_node(g, tree.root());
     g.wait();
+    PartitionTreeDebug::log("Routing all nets took " + std::to_string(t.elapsed_sec()) + " s");
 
     /* Combine results from threads */
     RouteIterResults out;
@@ -37,6 +40,7 @@ inline RouteIterResults DecompNetlistRouter<HeapType>::route_netlist(int itry, f
         out.rerouted_nets.insert(out.rerouted_nets.end(), results.rerouted_nets.begin(), results.rerouted_nets.end());
         out.is_routable &= results.is_routable;
     }
+
     return out;
 }
 
@@ -147,7 +151,8 @@ void DecompNetlistRouter<HeapType>::route_partition_tree_node(tbb::task_group& g
                 _net_list,
                 _connections_inf,
                 _router_opts,
-                _worst_neg_slack);
+                _worst_neg_slack,
+                _rr_node_route_infs_th.local());
             /* Try decomposing the net. */
             if (should_decompose_net(net_id, node)) {
                 VirtualNet left_vnet, right_vnet;
@@ -177,6 +182,7 @@ void DecompNetlistRouter<HeapType>::route_partition_tree_node(tbb::task_group& g
                 _worst_neg_slack,
                 _routing_predictor,
                 _choking_spots[net_id],
+                _rr_node_route_infs_th.local(),
                 _is_flat,
                 route_ctx.route_bb[net_id],
                 false);
@@ -225,6 +231,7 @@ void DecompNetlistRouter<HeapType>::route_partition_tree_node(tbb::task_group& g
                 _worst_neg_slack,
                 _routing_predictor,
                 _choking_spots[vnet.net_id],
+                _rr_node_route_infs_th.local(),
                 _is_flat,
                 vnet.clipped_bb,
                 false,
@@ -301,6 +308,7 @@ bool DecompNetlistRouter<HeapType>::decompose_and_route_net(ParentNetId net_id, 
         _worst_neg_slack,
         _routing_predictor,
         _choking_spots[net_id],
+        _rr_node_route_infs_th.local(),
         _is_flat,
         net_bb,
         false,
@@ -402,6 +410,7 @@ bool DecompNetlistRouter<HeapType>::decompose_and_route_vnet(VirtualNet& vnet, c
         _worst_neg_slack,
         _routing_predictor,
         _choking_spots[vnet.net_id],
+        _rr_node_route_infs_th.local(),
         _is_flat,
         vnet.clipped_bb,
         false,

@@ -124,7 +124,7 @@ bool feasible_routing() {
     auto& route_ctx = g_vpr_ctx.routing();
 
     for (const RRNodeId& rr_id : rr_graph.nodes()) {
-        if (route_ctx.rr_node_route_inf[rr_id].occ() > rr_graph.node_capacity(rr_id)) {
+        if (route_ctx.rr_node_occ_inf[rr_id].occ() > rr_graph.node_capacity(rr_id)) {
             return (false);
         }
     }
@@ -140,7 +140,7 @@ std::vector<RRNodeId> collect_congested_rr_nodes() {
 
     std::vector<RRNodeId> congested_rr_nodes;
     for (const RRNodeId inode : device_ctx.rr_graph.nodes()) {
-        short occ = route_ctx.rr_node_route_inf[inode].occ();
+        short occ = route_ctx.rr_node_occ_inf[inode].occ();
         short capacity = rr_graph.node_capacity(inode);
 
         if (occ > capacity) {
@@ -174,8 +174,8 @@ vtr::vector<RRNodeId, std::set<ClusterNetId>> collect_rr_node_nets() {
 void pathfinder_update_single_node_occupancy(RRNodeId inode, int add_or_sub) {
     auto& route_ctx = g_vpr_ctx.mutable_routing();
 
-    int occ = route_ctx.rr_node_route_inf[inode].occ() + add_or_sub;
-    route_ctx.rr_node_route_inf[inode].set_occ(occ);
+    int occ = route_ctx.rr_node_occ_inf[inode].occ() + add_or_sub;
+    route_ctx.rr_node_occ_inf[inode].set_occ(occ);
     // can't have negative occupancy
     VTR_ASSERT(occ >= 0);
 }
@@ -194,12 +194,12 @@ void pathfinder_update_acc_cost_and_overuse_info(float acc_fac, OveruseInfo& ove
 #ifdef VPR_USE_TBB
     tbb::combinable<size_t> overused_nodes(0), total_overuse(0), worst_overuse(0);
     tbb::parallel_for_each(rr_graph.nodes().begin(), rr_graph.nodes().end(), [&](RRNodeId rr_id) {
-        int overuse = route_ctx.rr_node_route_inf[rr_id].occ() - rr_graph.node_capacity(rr_id);
+        int overuse = route_ctx.rr_node_occ_inf[rr_id].occ() - rr_graph.node_capacity(rr_id);
 
         // If overused, update the acc_cost and add this node to the overuse info
         // If not, do nothing
         if (overuse > 0) {
-            route_ctx.rr_node_route_inf[rr_id].acc_cost += overuse * acc_fac;
+            route_ctx.rr_node_occ_inf[rr_id].acc_cost += overuse * acc_fac;
 
             ++overused_nodes.local();
             total_overuse.local() += overuse;
@@ -215,12 +215,12 @@ void pathfinder_update_acc_cost_and_overuse_info(float acc_fac, OveruseInfo& ove
     size_t overused_nodes = 0, total_overuse = 0, worst_overuse = 0;
 
     for (const RRNodeId& rr_id : rr_graph.nodes()) {
-        int overuse = route_ctx.rr_node_route_inf[rr_id].occ() - rr_graph.node_capacity(rr_id);
+        int overuse = route_ctx.rr_node_occ_inf[rr_id].occ() - rr_graph.node_capacity(rr_id);
 
         // If overused, update the acc_cost and add this node to the overuse info
         // If not, do nothing
         if (overuse > 0) {
-            route_ctx.rr_node_route_inf[rr_id].acc_cost += overuse * acc_fac;
+            route_ctx.rr_node_occ_inf[rr_id].acc_cost += overuse * acc_fac;
 
             ++overused_nodes;
             total_overuse += overuse;
@@ -278,19 +278,6 @@ void init_route_structs(const Netlist<>& net_list,
     }
 }
 
-/* The routine sets the path_cost to HUGE_POSITIVE_FLOAT for  *
- * all channel segments touched by previous routing phases.    */
-void reset_path_costs(const std::vector<RRNodeId>& visited_rr_nodes) {
-    auto& route_ctx = g_vpr_ctx.mutable_routing();
-
-    for (auto node : visited_rr_nodes) {
-        route_ctx.rr_node_route_inf[node].path_cost = std::numeric_limits<float>::infinity();
-        route_ctx.rr_node_route_inf[node].backward_path_cost = std::numeric_limits<float>::infinity();
-        route_ctx.rr_node_route_inf[node].prev_node = RRNodeId::INVALID();
-        route_ctx.rr_node_route_inf[node].prev_edge = RREdgeId::INVALID();
-    }
-}
-
 /* Returns the congestion cost of using this rr-node plus that of any      *
  * non-configurably connected rr_nodes that must be used when it is used.  */
 float get_rr_cong_cost(RRNodeId inode, float pres_fac) {
@@ -313,34 +300,6 @@ float get_rr_cong_cost(RRNodeId inode, float pres_fac) {
         }
     }
     return (cost);
-}
-
-/* Mark all the SINKs of this net as targets by setting their target flags  *
- * to the number of times the net must connect to each SINK.  Note that     *
- * this number can occasionally be greater than 1 -- think of connecting   *
- * the same net to two inputs of an and-gate (and-gate inputs are logically *
- * equivalent, so both will connect to the same SINK).                      */
-void mark_ends(const Netlist<>& net_list, ParentNetId net_id) {
-    unsigned int ipin;
-    RRNodeId inode;
-
-    auto& route_ctx = g_vpr_ctx.mutable_routing();
-
-    for (ipin = 1; ipin < net_list.net_pins(net_id).size(); ipin++) {
-        inode = route_ctx.net_rr_terminals[net_id][ipin];
-        route_ctx.rr_node_route_inf[inode].target_flag++;
-    }
-}
-
-/** like mark_ends, but only performs it for the remaining sinks of a net */
-void mark_remaining_ends(ParentNetId net_id) {
-    auto& route_ctx = g_vpr_ctx.mutable_routing();
-    const auto& tree = route_ctx.route_trees[net_id].value();
-
-    for (int sink_pin : tree.get_remaining_isinks()) {
-        RRNodeId inode = route_ctx.net_rr_terminals[net_id][sink_pin];
-        ++route_ctx.rr_node_route_inf[inode].target_flag;
-    }
 }
 
 //Calculates how many (and allocates space for) OPINs which must be reserved to
@@ -426,6 +385,8 @@ void alloc_and_load_rr_node_route_structs() {
     auto& device_ctx = g_vpr_ctx.device();
 
     route_ctx.rr_node_route_inf.resize(device_ctx.rr_graph.num_nodes());
+    route_ctx.rr_node_occ_inf.resize(device_ctx.rr_graph.num_nodes());
+
     route_ctx.non_configurable_bitset.resize(device_ctx.rr_graph.num_nodes());
     route_ctx.non_configurable_bitset.fill(false);
 
@@ -446,15 +407,15 @@ void reset_rr_node_route_structs() {
     VTR_ASSERT(route_ctx.rr_node_route_inf.size() == size_t(device_ctx.rr_graph.num_nodes()));
 
     for (const RRNodeId& rr_id : device_ctx.rr_graph.nodes()) {
-        auto& node_inf = route_ctx.rr_node_route_inf[rr_id];
+        auto& route_inf = route_ctx.rr_node_route_inf[rr_id];
+        auto& occ_inf = route_ctx.rr_node_occ_inf[rr_id];
 
-        node_inf.prev_node = RRNodeId::INVALID();
-        node_inf.prev_edge = RREdgeId::INVALID();
-        node_inf.acc_cost = 1.0;
-        node_inf.path_cost = std::numeric_limits<float>::infinity();
-        node_inf.backward_path_cost = std::numeric_limits<float>::infinity();
-        node_inf.target_flag = 0;
-        node_inf.set_occ(0);
+        route_inf.prev_node = RRNodeId::INVALID();
+        route_inf.prev_edge = RREdgeId::INVALID();
+        route_inf.path_cost = std::numeric_limits<float>::infinity();
+        route_inf.backward_path_cost = std::numeric_limits<float>::infinity();
+        occ_inf.acc_cost = 1.0;
+        occ_inf.set_occ(0);
     }
 }
 
@@ -757,14 +718,6 @@ t_bb load_net_route_bb(const Netlist<>& net_list,
     return bb;
 }
 
-void add_to_mod_list(RRNodeId inode, std::vector<RRNodeId>& modified_rr_node_inf) {
-    auto& route_ctx = g_vpr_ctx.routing();
-
-    if (std::isinf(route_ctx.rr_node_route_inf[inode].path_cost)) {
-        modified_rr_node_inf.push_back(inode);
-    }
-}
-
 //To ensure the router can only swap pins which are actually logically equivalent, some block output pins must be
 //reserved in certain cases.
 //
@@ -871,14 +824,14 @@ static void adjust_one_rr_occ_and_acc_cost(RRNodeId inode, int add_or_sub, float
     auto& device_ctx = g_vpr_ctx.device();
     const auto& rr_graph = device_ctx.rr_graph;
 
-    int new_occ = route_ctx.rr_node_route_inf[inode].occ() + add_or_sub;
+    int new_occ = route_ctx.rr_node_occ_inf[inode].occ() + add_or_sub;
     int capacity = rr_graph.node_capacity(inode);
-    route_ctx.rr_node_route_inf[inode].set_occ(new_occ);
+    route_ctx.rr_node_occ_inf[inode].set_occ(new_occ);
 
     if (new_occ < capacity) {
     } else {
         if (add_or_sub == 1) {
-            route_ctx.rr_node_route_inf[inode].acc_cost += (new_occ - capacity) * acc_fac;
+            route_ctx.rr_node_occ_inf[inode].acc_cost += (new_occ - capacity) * acc_fac;
         }
     }
 }
@@ -906,7 +859,7 @@ void print_invalid_routing_info(const Netlist<>& net_list, bool is_flat) {
         node_x = rr_graph.node_xlow(inode);
         node_y = rr_graph.node_ylow(inode);
 
-        int occ = route_ctx.rr_node_route_inf[inode].occ();
+        int occ = route_ctx.rr_node_occ_inf[inode].occ();
         int cap = rr_graph.node_capacity(inode);
         if (occ > cap) {
             VTR_LOG("  %s is overused (occ=%d capacity=%d)\n", describe_rr_node(rr_graph, device_ctx.grid, device_ctx.rr_indexed_data, inode, is_flat).c_str(), occ, cap);
@@ -961,10 +914,11 @@ void print_rr_node_route_inf_dot() {
     VTR_LOG("digraph G {\n");
     VTR_LOG("\tnode[shape=record]\n");
     for (size_t inode = 0; inode < route_ctx.rr_node_route_inf.size(); ++inode) {
-        const auto& inf = route_ctx.rr_node_route_inf[RRNodeId(inode)];
-        if (!std::isinf(inf.path_cost)) {
+        const auto& route_inf = route_ctx.rr_node_route_inf[RRNodeId(inode)];
+        const auto& occ_inf = route_ctx.rr_node_occ_inf[RRNodeId(inode)];
+        if (!std::isinf(route_inf.path_cost)) {
             VTR_LOG("\tnode%zu[label=\"{%zu (%s)", inode, inode, rr_graph.node_type_string(RRNodeId(inode)));
-            if (inf.occ() > rr_graph.node_capacity(RRNodeId(inode))) {
+            if (occ_inf.occ() > rr_graph.node_capacity(RRNodeId(inode))) {
                 VTR_LOG(" x");
             }
             VTR_LOG("}\"]\n");

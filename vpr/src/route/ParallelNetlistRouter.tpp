@@ -65,6 +65,7 @@ void ParallelNetlistRouter<HeapType>::route_partition_tree_node(tbb::task_group&
             _worst_neg_slack,
             _routing_predictor,
             _choking_spots[net_id],
+            route_ctx.rr_node_route_inf,
             _is_flat,
             route_ctx.route_bb[net_id]);
 

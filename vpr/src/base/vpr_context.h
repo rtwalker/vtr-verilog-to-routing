@@ -435,6 +435,8 @@ struct RoutingContext : public Context {
 
     vtr::vector<RRNodeId, t_rr_node_route_inf> rr_node_route_inf; /* [0..device_ctx.num_rr_nodes-1] */
 
+    vtr::vector<RRNodeId, t_rr_node_occ_inf> rr_node_occ_inf; /* [0..device_ctx.num_rr_nodes-1] */
+
     vtr::vector<ParentNetId, std::vector<std::vector<int>>> net_terminal_groups;
 
     vtr::vector<ParentNetId, std::vector<int>> net_terminal_group_num;

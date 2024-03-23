@@ -57,6 +57,7 @@ inline NetResultFlags route_net(ConnectionRouter& router,
                                 float worst_negative_slack,
                                 const RoutingPredictor& routing_predictor,
                                 const std::vector<std::unordered_map<RRNodeId, int>>& choking_spots,
+                                vtr::vector<RRNodeId, t_rr_node_route_inf>& rr_node_route_inf,
                                 bool is_flat,
                                 const t_bb& net_bb,
                                 bool should_setup = true,
@@ -89,7 +90,8 @@ inline NetResultFlags route_net(ConnectionRouter& router,
             net_list,
             connections_inf,
             router_opts,
-            worst_negative_slack);
+            worst_negative_slack,
+            rr_node_route_inf);
     }
 
     VTR_ASSERT(route_ctx.route_trees[net_id]);
@@ -165,6 +167,7 @@ inline NetResultFlags route_net(ConnectionRouter& router,
                                        tree,
                                        spatial_route_tree_lookup,
                                        router_stats,
+                                       rr_node_route_inf,
                                        is_flat);
     }
 
@@ -206,6 +209,7 @@ inline NetResultFlags route_net(ConnectionRouter& router,
                                      budgeting_inf,
                                      routing_predictor,
                                      choking_spots,
+                                     rr_node_route_inf,
                                      is_flat,
                                      net_bb);
 
@@ -244,7 +248,7 @@ inline NetResultFlags route_net(ConnectionRouter& router,
         }
     }
 
-    VTR_ASSERT_MSG(g_vpr_ctx.routing().rr_node_route_inf[tree.root().inode].occ() <= rr_graph.node_capacity(tree.root().inode), "SOURCE should never be congested");
+    VTR_ASSERT_MSG(g_vpr_ctx.routing().rr_node_occ_inf[tree.root().inode].occ() <= rr_graph.node_capacity(tree.root().inode), "SOURCE should never be congested");
     VTR_LOGV_DEBUG(f_router_debug, "Routed Net %zu (%zu sinks)\n", size_t(net_id), num_sinks);
 
     router.empty_rcv_route_tree_set(); // ?
@@ -267,6 +271,7 @@ inline NetResultFlags pre_route_to_clock_root(ConnectionRouter& router,
                                               RouteTree& tree,
                                               SpatialRouteTreeLookup& spatial_rt_lookup,
                                               RouterStats& router_stats,
+                                              const vtr::vector<RRNodeId, t_rr_node_route_inf>& rr_node_route_inf,
                                               bool is_flat) {
     const auto& device_ctx = g_vpr_ctx.device();
     auto& route_ctx = g_vpr_ctx.mutable_routing();
@@ -322,7 +327,7 @@ inline NetResultFlags pre_route_to_clock_root(ConnectionRouter& router,
      * points. Therefore, we can set the net pin index of the sink node to      *
      * OPEN (meaning illegal) as it is not meaningful for this sink.            */
     vtr::optional<const RouteTreeNode&> new_branch, new_sink;
-    std::tie(new_branch, new_sink) = tree.update_from_heap(&cheapest, OPEN, ((high_fanout) ? &spatial_rt_lookup : nullptr), is_flat);
+    std::tie(new_branch, new_sink) = tree.update_from_heap(&cheapest, OPEN, ((high_fanout) ? &spatial_rt_lookup : nullptr), rr_node_route_inf, is_flat);
 
     VTR_ASSERT_DEBUG(!high_fanout || validate_route_tree_spatial_lookup(tree.root(), spatial_rt_lookup));
 
@@ -342,7 +347,7 @@ inline NetResultFlags pre_route_to_clock_root(ConnectionRouter& router,
     // - remove sink from route tree and fix routing for all nodes leading to the sink ("freeze")
     // - free up virtual sink occupancy
     tree.freeze();
-    m_route_ctx.rr_node_route_inf[sink_node].set_occ(0);
+    m_route_ctx.rr_node_occ_inf[sink_node].set_occ(0);
 
     // routed to a sink successfully
     out.success = true;
@@ -384,6 +389,7 @@ inline NetResultFlags route_sink(ConnectionRouter& router,
                                  route_budgets& budgeting_inf,
                                  const RoutingPredictor& routing_predictor,
                                  const std::vector<std::unordered_map<RRNodeId, int>>& choking_spots,
+                                 const vtr::vector<RRNodeId, t_rr_node_route_inf>& rr_node_route_inf,
                                  bool is_flat,
                                  const t_bb& net_bb) {
     const auto& device_ctx = g_vpr_ctx.device();
@@ -448,11 +454,8 @@ inline NetResultFlags route_sink(ConnectionRouter& router,
 
     profiling::sink_criticality_end(cost_params.criticality);
 
-    RRNodeId inode(cheapest.index);
-    route_ctx.rr_node_route_inf[inode].target_flag--; /* Connected to this SINK. */
-
     vtr::optional<const RouteTreeNode&> new_branch, new_sink;
-    std::tie(new_branch, new_sink) = tree.update_from_heap(&cheapest, target_pin, ((high_fanout) ? &spatial_rt_lookup : nullptr), is_flat);
+    std::tie(new_branch, new_sink) = tree.update_from_heap(&cheapest, target_pin, ((high_fanout) ? &spatial_rt_lookup : nullptr), rr_node_route_inf, is_flat);
 
     VTR_ASSERT_DEBUG(!high_fanout || validate_route_tree_spatial_lookup(tree.root(), spatial_rt_lookup));
 

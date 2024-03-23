@@ -900,10 +900,6 @@ void ConnectionRouter<Heap>::add_route_tree_node_to_heap(
     float backward_path_cost = cost_params.criticality * rt_node.Tdel;
     float R_upstream = rt_node.R_upstream;
 
-    /* Don't push to heap if not in bounding box: no-op for serial router, important for parallel router */
-    if (!inside_bb(rt_node.inode, net_bb))
-        return;
-
     // after budgets are loaded, calculate delay cost as described by RCV paper
     /* R. Fung, V. Betz and W. Chow, "Slack Allocation and Routing to Improve FPGA Timing While
      * Repairing Short-Path Violations," in IEEE Transactions on Computer-Aided Design of
@@ -1021,11 +1017,6 @@ t_bb ConnectionRouter<Heap>::add_high_fanout_route_tree_to_heap(
                         continue;
                 }
 
-                /* In case of the parallel router, we may be dealing with a virtual net
-                 * so prune the nodes from the HF lookup against the bounding box just in case */
-                if (!inside_bb(rr_node_to_add, net_bounding_box))
-                    continue;
-
                 if (!has_path_to_sink(rr_nodes_, rr_graph_, RRNodeId(rt_node.inode), target_node, only_opin_inter_layer)) {
                     continue;
                 }
@@ -1035,14 +1026,18 @@ t_bb ConnectionRouter<Heap>::add_high_fanout_route_tree_to_heap(
                 // Expand HF BB to include the node (clip by original BB)
                 expand_highfanout_bounding_box(highfanout_bb, net_bounding_box, rr_node_to_add, rr_graph_);
 
-                if (is_flat_) {
-                    if (rr_graph_->node_type(rr_node_to_add) == CHANY || rr_graph_->node_type(rr_node_to_add) == CHANX) {
+                /* In case of the parallel router, we may be dealing with a virtual net.
+                 * Still push nodes outside the BB to the heap, but don't count them towards nodes_added */
+                if(inside_bb(rr_node_to_add, net_bounding_box)){
+                    if (is_flat_) {
+                        if (rr_graph_->node_type(rr_node_to_add) == CHANY || rr_graph_->node_type(rr_node_to_add) == CHANX) {
+                            chan_nodes_added++;
+                        }
+                    } else {
                         chan_nodes_added++;
                     }
-                } else {
-                    chan_nodes_added++;
+                    nodes_added++;
                 }
-                nodes_added++;
             }
 
             constexpr int SINGLE_BIN_MIN_NODES = 2;

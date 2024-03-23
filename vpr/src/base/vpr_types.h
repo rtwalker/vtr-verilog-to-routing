@@ -1723,31 +1723,36 @@ constexpr bool is_src_sink(e_rr_type type) { return (type == SOURCE || type == S
  *   @param prev_edge  Index of the edge (from 0 to num_edges-1 of prev_node)
  *                     that was used to reach this node from the previous node.
  *                     If there is no predecessor, prev_edge = NO_PREVIOUS.
- *   @param acc_cost   Accumulated cost term from previous Pathfinder iterations.
  *   @param path_cost  Total cost of the path up to and including this node +
  *                     the expected cost to the target if the timing_driven router
  *                     is being used.
  *   @param backward_path_cost  Total cost of the path up to and including this
  *                     node.
- *   @param target_flag  Is this node a target (sink) for the current routing?
- *                     Number of times this node must be reached to fully route.
- *   @param occ        The current occupancy of the associated rr node
  */
 struct t_rr_node_route_inf {
     RRNodeId prev_node;
     RREdgeId prev_edge;
 
-    float acc_cost;
     float path_cost;
     float backward_path_cost;
+};
 
-    short target_flag;
+/**
+ * @brief Occupancy related routing information about each rr_node.
+ *
+ *   @param acc_cost   Accumulated cost term from previous Pathfinder iterations.
+ *   @param target_flag  Is this node a target (sink) for the current routing?
+ *                     Number of times this node must be reached to fully route.
+ *   @param occ        The current occupancy of the associated rr node
+ */
+ struct t_rr_node_occ_inf {
+    float acc_cost;
 
   public: //Accessors
-    short occ() const { return occ_; }
+    inline short occ() const { return occ_; }
 
   public: //Mutators
-    void set_occ(int new_occ) { occ_ = new_occ; }
+    inline void set_occ(int new_occ) { occ_ = new_occ; }
 
   private: //Data
     short occ_ = 0;

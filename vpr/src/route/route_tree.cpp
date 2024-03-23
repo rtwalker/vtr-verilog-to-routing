@@ -60,7 +60,7 @@ void RouteTreeNode::print_x(int depth) const {
     }
 
     auto& route_ctx = g_vpr_ctx.routing();
-    if (route_ctx.rr_node_route_inf[inode].occ() > rr_graph.node_capacity(inode)) {
+    if (route_ctx.rr_node_occ_inf[inode].occ() > rr_graph.node_capacity(inode)) {
         VTR_LOG(" x");
     }
 
@@ -397,7 +397,7 @@ bool RouteTree::is_valid_x(const RouteTreeNode& rt_node) const {
     }
 
     if (rr_graph.node_type(inode) == SINK) { // sink, must not be congested and must not have fanouts
-        int occ = route_ctx.rr_node_route_inf[inode].occ();
+        int occ = route_ctx.rr_node_occ_inf[inode].occ();
         int capacity = rr_graph.node_capacity(inode);
         if (rt_node._next != nullptr && rt_node._next->_parent == &rt_node) {
             VTR_LOG("SINK %d has fanouts?\n", inode);
@@ -455,7 +455,7 @@ bool RouteTree::is_uncongested_x(const RouteTreeNode& rt_node) const {
     const auto& rr_graph = device_ctx.rr_graph;
 
     RRNodeId inode = rt_node.inode;
-    if (route_ctx.rr_node_route_inf[inode].occ() > rr_graph.node_capacity(RRNodeId(inode))) {
+    if (route_ctx.rr_node_occ_inf[inode].occ() > rr_graph.node_capacity(RRNodeId(inode))) {
         //This node is congested
         return false;
     }
@@ -483,13 +483,14 @@ void RouteTree::print(void) const {
  * returns a tuple: RouteTreeNode of the branch it adds to the route tree and
  * RouteTreeNode of the SINK it adds to the routing. */
 std::tuple<vtr::optional<const RouteTreeNode&>, vtr::optional<const RouteTreeNode&>>
-RouteTree::update_from_heap(t_heap* hptr, int target_net_pin_index, SpatialRouteTreeLookup* spatial_rt_lookup, bool is_flat) {
+RouteTree::update_from_heap(t_heap* hptr, int target_net_pin_index, SpatialRouteTreeLookup* spatial_rt_lookup,
+    const vtr::vector<RRNodeId, t_rr_node_route_inf>& rr_node_route_inf, bool is_flat) {
     /* Lock the route tree for writing. At least on Linux this shouldn't have an impact on single-threaded code */
     std::unique_lock<std::mutex> write_lock(_write_mutex);
 
     //Create a new subtree from the target in hptr to existing routing
     vtr::optional<RouteTreeNode&> start_of_new_subtree_rt_node, sink_rt_node;
-    std::tie(start_of_new_subtree_rt_node, sink_rt_node) = add_subtree_from_heap(hptr, target_net_pin_index, is_flat);
+    std::tie(start_of_new_subtree_rt_node, sink_rt_node) = add_subtree_from_heap(hptr, target_net_pin_index, rr_node_route_inf, is_flat);
 
     if (!start_of_new_subtree_rt_node)
         return {vtr::nullopt, *sink_rt_node};
@@ -512,10 +513,9 @@ RouteTree::update_from_heap(t_heap* hptr, int target_net_pin_index, SpatialRoute
  * to the SINK indicated by hptr. Returns the first (most upstream) new rt_node,
  * and the rt_node of the new SINK. Traverses up from SINK  */
 std::tuple<vtr::optional<RouteTreeNode&>, vtr::optional<RouteTreeNode&>>
-RouteTree::add_subtree_from_heap(t_heap* hptr, int target_net_pin_index, bool is_flat) {
+RouteTree::add_subtree_from_heap(t_heap* hptr, int target_net_pin_index, const vtr::vector<RRNodeId, t_rr_node_route_inf>& rr_node_route_inf, bool is_flat) {
     auto& device_ctx = g_vpr_ctx.device();
     const auto& rr_graph = device_ctx.rr_graph;
-    auto& route_ctx = g_vpr_ctx.routing();
 
     RRNodeId sink_inode = RRNodeId(hptr->index);
 
@@ -540,8 +540,8 @@ RouteTree::add_subtree_from_heap(t_heap* hptr, int target_net_pin_index, bool is
     while (!_rr_node_to_rt_node.count(new_inode)) {
         new_branch_inodes.push_back(new_inode);
         new_branch_iswitches.push_back(new_iswitch);
-        edge = route_ctx.rr_node_route_inf[new_inode].prev_edge;
-        new_inode = RRNodeId(route_ctx.rr_node_route_inf[new_inode].prev_node);
+        edge = rr_node_route_inf[new_inode].prev_edge;
+        new_inode = RRNodeId(rr_node_route_inf[new_inode].prev_node);
         new_iswitch = RRSwitchId(rr_graph.rr_nodes().edge_switch(edge));
     }
     new_branch_iswitches.push_back(new_iswitch);
@@ -651,7 +651,7 @@ RouteTree::prune(CBRR& connections_inf, std::vector<int>* non_config_node_set_us
 
     VTR_ASSERT_MSG(_net_id, "RouteTree must be constructed using a ParentNetId");
 
-    VTR_ASSERT_MSG(route_ctx.rr_node_route_inf[root().inode].occ() <= rr_graph.node_capacity(root().inode),
+    VTR_ASSERT_MSG(route_ctx.rr_node_occ_inf[root().inode].occ() <= rr_graph.node_capacity(root().inode),
                    "Route tree root/SOURCE should never be congested");
 
     auto pruned_node = prune_x(*_root, connections_inf, false, non_config_node_set_usage);
@@ -669,7 +669,7 @@ RouteTree::prune_x(RouteTreeNode& rt_node, CBRR& connections_inf, bool force_pru
     auto& device_ctx = g_vpr_ctx.device();
     const auto& rr_graph = device_ctx.rr_graph;
     auto& route_ctx = g_vpr_ctx.routing();
-    bool congested = (route_ctx.rr_node_route_inf[rt_node.inode].occ() > rr_graph.node_capacity(rt_node.inode));
+    bool congested = (route_ctx.rr_node_occ_inf[rt_node.inode].occ() > rr_graph.node_capacity(rt_node.inode));
 
     int node_set = -1;
     auto itr = device_ctx.rr_node_to_non_config_node_set.find(rt_node.inode);

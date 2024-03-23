@@ -480,7 +480,7 @@ void recompute_occupancy_from_scratch(const Netlist<>& net_list, bool is_flat) {
 
     /* First set the occupancy of everything to zero. */
     for (RRNodeId inode : device_ctx.rr_graph.nodes())
-        route_ctx.rr_node_route_inf[inode].set_occ(0);
+        route_ctx.rr_node_occ_inf[inode].set_occ(0);
 
     /* Now go through each net and count the tracks and pins used everywhere */
 
@@ -493,7 +493,7 @@ void recompute_occupancy_from_scratch(const Netlist<>& net_list, bool is_flat) {
 
         for (auto& rt_node : route_ctx.route_trees[net_id].value().all_nodes()) {
             RRNodeId inode = rt_node.inode;
-            route_ctx.rr_node_route_inf[inode].set_occ(route_ctx.rr_node_route_inf[inode].occ() + 1);
+            route_ctx.rr_node_occ_inf[inode].set_occ(route_ctx.rr_node_occ_inf[inode].occ() + 1);
         }
     }
 
@@ -510,7 +510,7 @@ void recompute_occupancy_from_scratch(const Netlist<>& net_list, bool is_flat) {
                 for (int ipin = 0; ipin < num_local_opins; ipin++) {
                     RRNodeId inode = route_ctx.clb_opins_used_locally[cluster_blk_id][iclass][ipin];
                     VTR_ASSERT(inode && size_t(inode) < device_ctx.rr_graph.num_nodes());
-                    route_ctx.rr_node_route_inf[inode].set_occ(route_ctx.rr_node_route_inf[inode].occ() + 1);
+                    route_ctx.rr_node_occ_inf[inode].set_occ(route_ctx.rr_node_occ_inf[inode].occ() + 1);
                 }
             }
         }
