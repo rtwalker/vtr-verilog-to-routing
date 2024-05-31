@@ -1,1 +1,1 @@
-regression_tests/vtr_reg_nightly_test3_odin/complex_switch
+regression_tests/vtr_reg_nightly_test1/complex_switch
